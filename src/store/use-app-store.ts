@@ -235,6 +235,22 @@ export const useAppStore = create<AppState & AppActions>()(
     }),
     {
       name: 'listafacil-storage',
+      version: 1,
+      migrate: (persisted, fromVersion) => {
+        const state = persisted as AppState & AppActions
+        if (fromVersion < 1) {
+          // Rename cat-mercado "Mercado" → "Mercearia" in existing data
+          state.categories = state.categories.map((c) =>
+            c.id === 'cat-mercado' ? { ...c, name: 'Mercearia', icon: '🥫' } : c
+          )
+          // Add new default categories that didn't exist before v1
+          const existingIds = new Set(state.categories.map((c) => c.id))
+          DEFAULT_CATEGORIES.forEach((dc) => {
+            if (!existingIds.has(dc.id)) state.categories.push(dc)
+          })
+        }
+        return state
+      },
       storage: createJSONStorage(() => {
         if (typeof window === 'undefined') {
           return { getItem: () => null, setItem: () => {}, removeItem: () => {} }

@@ -5,10 +5,10 @@ Gerenciador de listas de compras para uso pessoal. Roda 100% no navegador — se
 ## Funcionalidades
 
 - Criar e gerenciar listas de compras com orçamento
-- Adicionar itens com quantidade, unidade, preço estimado, categoria e prioridade
+- Adicionar e editar itens (quantidade, unidade, preço estimado, preço real, categoria, prioridade, notas)
 - Marcar itens como comprados
 - Filtrar por categoria, status e buscar por nome
-- Alerta visual quando orçamento é ultrapassado
+- Barra de orçamento colorida (verde / laranja / vermelho) com saldo restante ou ultrapassado
 - Concluir lista → gera snapshot no histórico
 - Histórico com comparação estimado vs real
 - Estatísticas: gastos por categoria, gráfico mensal, itens mais comprados, sugestões
@@ -40,7 +40,10 @@ Abre em `http://localhost:3000`. Sem variáveis de ambiente. Dados persistem em 
 ## Comandos
 
 ```bash
-npm run dev      # Servidor de desenvolvimento
-npm run build    # Build de produção
-npm run lint     # ESLint
+npm run dev           # Servidor de desenvolvimento
+npm run build         # Build de produção
+npm run lint          # ESLint
+npm run lint:fix      # ESLint + auto-fix
+npm run format        # Prettier write
+npm run format:check  # Prettier check
 ```

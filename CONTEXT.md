@@ -8,16 +8,18 @@ Aplicativo web de gerenciamento de listas de compras. Single-user, sem autentica
 
 - CRUD de listas de compras com orçamento
 - CRUD de itens por lista (nome, quantidade, unidade, preço estimado, preço real, categoria, prioridade, notas)
+- Edição de itens via dialog com todos os campos (incluindo preço real e notas)
 - Marcar itens como comprados
 - Filtro por categoria, status (comprado/pendente) e busca por nome
 - Ordenação por prioridade, nome ou categoria
-- Controle de orçamento com alerta visual quando ultrapassa
+- Controle de orçamento com barra colorida (verde/laranja/vermelho) e mensagem de status
 - Concluir lista → salva snapshot no histórico
 - Histórico de compras com comparação estimado vs real
 - Estatísticas: gastos por categoria, gráfico mensal, itens mais comprados, sugestões inteligentes
-- Categorias padrão + categorias personalizadas
+- 12 categorias padrão baseadas em seções de supermercado + categorias personalizadas
 - Dark mode (next-themes)
 - Layout responsivo com sidebar (mobile: hamburger menu)
+- Botões de ação sempre visíveis no mobile, hover no desktop
 
 ---
 
@@ -71,6 +73,7 @@ shopping-list/
     │       ├── button.tsx
     │       ├── card.tsx
     │       ├── checkbox.tsx
+    │       ├── currency-input.tsx      # Input com máscara R$ — value/onChange em centavos
     │       ├── dialog.tsx
     │       ├── input.tsx
     │       ├── label.tsx
@@ -85,7 +88,8 @@ shopping-list/
     ├── types/
     │   └── index.ts                # Tipos compartilhados: List, Item, Category, PurchaseHistory
     └── lib/
-        ├── utils.ts                # cn(), formatCurrency()
+        ├── utils.ts                # cn(), formatCurrency(), parseCurrencyToCents()
+        ├── units.ts                # Unit, UNITS, normalizeUnit(), unitAbbr()
         └── categories.ts           # DEFAULT_CATEGORIES (IDs estáveis)
 ```
 
@@ -93,7 +97,7 @@ shopping-list/
 
 ## Store Zustand (`use-app-store.ts`)
 
-Chave localStorage: `"listafacil-storage"`
+Chave localStorage: `"listafacil-storage"` · Versão atual: `1`
 
 **Estado:**
 
@@ -118,6 +122,8 @@ history: PurchaseHistory[]
 | `addCategory({ name, icon?, color? })`     | Cria categoria personalizada                                |
 | `deleteCategory(id)`                       | Remove categoria personalizada (padrões são protegidas)     |
 
+**Migração:** a função `migrate(persisted, fromVersion)` no persist config é executada automaticamente quando o usuário tem dados de versão anterior. v0 → v1: renomeia "Mercado" → "Mercearia" (mantendo o ID `cat-mercado`) e insere `cat-congelados` / `cat-utilidades`. Para mudanças futuras: incrementar `version` e estender `migrate`.
+
 ---
 
 ## Tipos principais (`types/index.ts`)
@@ -140,7 +146,7 @@ interface Item {
   listId: string
   name: string
   quantity: number
-  unit?: string
+  unit?: Unit  // 'UN' | 'KG' | 'G' | 'L' | 'ML' | 'CX' | 'PCT'
   estimatedPrice?: number
   actualPrice?: number // centavos
   categoryId?: string
@@ -211,6 +217,54 @@ Todos os preços são **inteiros em centavos** no store. `R$ 9,99 → 999`.
 
 - Store actions aceitam reais (float) e convertem internamente com `Math.round(value * 100)`
 - `formatCurrency(cents)` em `src/lib/utils.ts` formata para exibição
+- `<CurrencyInput>` emite centavos; na chamada ao store divida por 100: `estimatedPrice: price / 100`
+
+---
+
+## Unidades de medida
+
+Campo `unit` do item usa o tipo `Unit = 'UN' | 'KG' | 'G' | 'L' | 'ML' | 'CX' | 'PCT'` de `lib/units.ts`.
+
+- `normalizeUnit(raw)` — converte valores legados (texto livre) para o código tipado
+- `unitAbbr(unit)` — retorna a abreviação de exibição (`'kg'`, `'L'`, etc.)
+- Exibição: `normalizeUnit(item.unit) ? unitAbbr(normalizeUnit(item.unit)!) : 'x'`
+
+---
+
+## Botões de ação responsivos
+
+Ícones de editar/excluir em cards de item usam o padrão:
+
+```
+opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity
+```
+
+Mobile (`< md`): sempre visível, área de toque `h-10 w-10` (40 px).  
+Desktop (`≥ md`): aparece no hover, tamanho padrão do ícone.  
+Sempre incluir `aria-label` em botões com apenas ícone.
+
+---
+
+## Categorias padrão (`lib/categories.ts`)
+
+12 categorias com IDs estáveis, ordenadas pelo fluxo natural de um supermercado:
+
+| ID | Nome | Ícone |
+|---|---|---|
+| `cat-hortifruti` | Hortifruti | 🥦 |
+| `cat-acougue` | Açougue | 🥩 |
+| `cat-padaria` | Padaria | 🍞 |
+| `cat-frios` | Frios e Laticínios | 🧀 |
+| `cat-mercado` | Mercearia | 🥫 |
+| `cat-congelados` | Congelados | 🧊 |
+| `cat-bebidas` | Bebidas | 🥤 |
+| `cat-limpeza` | Limpeza | 🧹 |
+| `cat-higiene` | Higiene Pessoal | 🧴 |
+| `cat-utilidades` | Utilidades | 🏠 |
+| `cat-eletronicos` | Eletrônicos | 💻 |
+| `cat-outros` | Outros | 📦 |
+
+`cat-mercado` mantém o ID original para compatibilidade retroativa (era "Mercado" até v0 do store).
 
 ---
 
@@ -218,6 +272,6 @@ Todos os preços são **inteiros em centavos** no store. `R$ 9,99 → 999`.
 
 - **Frontend-only:** sem backend elimina necessidade de PostgreSQL, Docker, variáveis de ambiente e setup local complexo.
 - **Zustand persist:** serialização/desserialização automática via `createJSONStorage(() => localStorage)`.
-- **IDs estáveis em categorias padrão:** `cat-mercado`, `cat-padaria`, etc. evitam duplicação ao reinicializar o store.
+- **IDs estáveis em categorias padrão:** `cat-hortifruti`, `cat-mercado`, etc. evitam duplicação ao reinicializar o store. `cat-mercado` mantém o ID mesmo após ser renomeado para "Mercearia" — itens antigos não perdem a categoria.
 - **PurchaseHistory como snapshot imutável:** ao concluir lista, `itemsSummary` preserva nome, preços e categoria de cada item — dados ficam acessíveis mesmo se a lista for deletada depois.
 - **Sem autenticação:** app single-user, dados locais por definição.

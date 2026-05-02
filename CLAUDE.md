@@ -20,9 +20,12 @@ See `prompt.md` for the full feature spec (in Portuguese).
 ## Development Commands
 
 ```bash
-npm run dev        # Start dev server (http://localhost:3000)
-npm run build      # Production build
-npm run lint       # ESLint
+npm run dev           # Start dev server (http://localhost:3000)
+npm run build         # Production build
+npm run lint          # ESLint
+npm run lint:fix      # ESLint + auto-fix
+npm run format        # Prettier write
+npm run format:check  # Prettier check (CI)
 ```
 
 ## Architecture
@@ -38,13 +41,15 @@ src/
       categorias/     # Categories management
   components/
     ui/               # Primitive components (button, card, dialog, etc.)
+      currency-input.tsx  # Masked R$ input — value/onChange in cents (integer)
     sidebar.tsx       # Navigation sidebar with mobile hamburger
     theme-toggle.tsx  # Dark/light mode toggle
   store/
     use-app-store.ts  # Zustand store — lists, items, categories, history
   lib/
-    utils.ts          # cn(), formatCurrency()
+    utils.ts          # cn(), formatCurrency(), parseCurrencyToCents()
     categories.ts     # DEFAULT_CATEGORIES (stable string IDs)
+    units.ts          # Unit type, UNITS list, normalizeUnit(), unitAbbr()
   hooks/
     use-mounted.ts    # Returns true only after client mount
   types/
@@ -74,6 +79,26 @@ Actions: `addList`, `updateList`, `deleteList`, `completeList`, `addItem`, `upda
 
 All prices stored as **integers (cents)** in the store. Use `formatCurrency(cents)` to display. Store actions accept reais (floats) and multiply by 100 internally.
 
+### Unit field
+
+Item units use the typed `Unit = 'UN' | 'KG' | 'G' | 'L' | 'ML' | 'CX' | 'PCT'` enum from `lib/units.ts`. Display via `unitAbbr()`. Legacy free-text values are normalized on-the-fly with `normalizeUnit()` — no store migration needed.
+
+### Currency input
+
+`<CurrencyInput value={cents} onChange={setCents} />` — accepts/emits integers (cents). Store actions take reais (floats), so divide by 100 at the call site: `estimatedPrice: price / 100`.
+
+### Responsive action buttons
+
+Item action buttons (edit, delete) use `opacity-100 md:opacity-0 md:group-hover:opacity-100` so they are always visible on mobile and appear on hover on desktop. Touch targets on mobile use `h-10 w-10` (40 px). Always include `aria-label` on icon-only buttons.
+
 ### Category IDs
 
-`DEFAULT_CATEGORIES` uses stable string IDs (`cat-mercado`, `cat-padaria`, etc.) so they don't regenerate across store initializations.
+`DEFAULT_CATEGORIES` uses stable string IDs so they don't regenerate across store initializations. Current default categories (ordered as they appear in dropdowns):
+
+`cat-hortifruti` · `cat-acougue` · `cat-padaria` · `cat-frios` · `cat-mercado` (Mercearia) · `cat-congelados` · `cat-bebidas` · `cat-limpeza` · `cat-higiene` · `cat-utilidades` · `cat-eletronicos` · `cat-outros`
+
+Note: `cat-mercado` ID is kept for backward compatibility — it was renamed from "Mercado" to "Mercearia" in v1.
+
+### Store versioning and migration
+
+The store uses `version: 1` in the persist config. The `migrate` function runs automatically when localStorage contains data from an older version (v0 → v1: renames "Mercado" → "Mercearia", inserts `cat-congelados` and `cat-utilidades`). When adding future breaking changes to default data, bump the version and extend `migrate`.
