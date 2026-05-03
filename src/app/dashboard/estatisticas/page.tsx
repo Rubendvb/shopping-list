@@ -21,6 +21,7 @@ import { useAppStore } from '@/store/use-app-store'
 import { useMounted } from '@/hooks/use-mounted'
 import { toast } from '@/hooks/use-toast'
 import { useStatistics, periodOptions } from '@/hooks/use-statistics'
+import { Skeleton } from '@/components/ui/skeleton'
 import type { Period, TopItem } from '@/hooks/use-statistics'
 
 const monthNames: Record<string, string> = {
@@ -54,7 +55,36 @@ export default function EstatisticasPage() {
     activeLists,
   } = useStatistics(period)
 
-  if (!mounted) return null
+  if (!mounted) return (
+    <div className="space-y-8">
+      <div className="flex items-center justify-between gap-4">
+        <Skeleton className="h-8 w-32" />
+        <Skeleton className="h-9 w-44 rounded-md" />
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Card key={i}>
+            <CardContent className="p-4 space-y-2">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-7 w-20" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      <div className="grid gap-6 lg:grid-cols-2">
+        {Array.from({ length: 2 }).map((_, i) => (
+          <Card key={i}>
+            <CardContent className="p-4 space-y-3 pt-6">
+              <Skeleton className="h-4 w-36 mb-2" />
+              {Array.from({ length: 4 }).map((_, j) => (
+                <Skeleton key={j} className="h-4 w-full" />
+              ))}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  )
 
   if (!hasData) {
     return (

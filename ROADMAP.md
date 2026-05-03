@@ -268,7 +268,7 @@ Toda a lógica de computação de `estatisticas/page.tsx` (loops, maps, agregaç
 
 ---
 
-### T4. Seletores de store com `useShallow`
+### ✅ T4. Seletores de store com `useShallow`
 
 Seletores que retornam arrays derivados (`.filter(...)`, `.map(...)`) criam nova referência a cada render, causando re-renders desnecessários. Usar `useShallow` do Zustand:
 ```ts
@@ -278,7 +278,7 @@ const listItems = useAppStore(useShallow(s => s.items.filter(i => i.listId === l
 
 ---
 
-### T5. Skeleton no lugar do `return null` do `useMounted`
+### ✅ T5. Skeleton no lugar do `return null` do `useMounted`
 
 O guard `if (!mounted) return null` exibe tela em branco durante a hidratação. Retornar um skeleton com as dimensões aproximadas da página elimina o flash de conteúdo sem comprometer o guard de SSR.
 

@@ -2,6 +2,7 @@
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { notFound } from 'next/navigation'
+import { useShallow } from 'zustand/react/shallow'
 import {
   DndContext,
   closestCenter,
@@ -30,6 +31,7 @@ import {
   ShoppingCart,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
@@ -56,6 +58,7 @@ import { useAppStore } from '@/store/use-app-store'
 import { useMounted } from '@/hooks/use-mounted'
 import { toast } from '@/hooks/use-toast'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { Skeleton } from '@/components/ui/skeleton'
 import type { Item } from '@/types'
 import { BudgetCard } from './components/budget-card'
 import { SortableItemCard, priorityOrder } from './components/item-card'
@@ -67,7 +70,7 @@ export function ListDetailClient({ listId }: { listId: string }) {
   const mounted = useMounted()
 
   const list = useAppStore((s) => s.lists.find((l) => l.id === listId))
-  const allItems = useAppStore((s) => s.items)
+  const listItems = useAppStore(useShallow((s) => s.items.filter((i) => i.listId === listId)))
   const categories = useAppStore((s) => s.categories)
   const storeUpdateItem = useAppStore((s) => s.updateItem)
   const storeDeleteItem = useAppStore((s) => s.deleteItem)
@@ -93,8 +96,6 @@ export function ListDetailClient({ listId }: { listId: string }) {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
-
-  const listItems = useMemo(() => allItems.filter((i) => i.listId === listId), [allItems, listId])
 
   const filtered = useMemo(() => {
     return listItems
@@ -124,7 +125,46 @@ export function ListDetailClient({ listId }: { listId: string }) {
       })
   }, [listItems, search, filterCategory, filterStatus, sortBy, categories])
 
-  if (!mounted) return null
+  if (!mounted) return (
+    <div className="space-y-6 pb-6">
+      <div className="flex items-start gap-3">
+        <Skeleton className="h-9 w-9 shrink-0 rounded-md" />
+        <div className="flex-1 space-y-1.5">
+          <Skeleton className="h-7 w-48" />
+          <Skeleton className="h-4 w-32" />
+        </div>
+        <Skeleton className="h-9 w-24 rounded-md" />
+      </div>
+      <Card>
+        <CardContent className="p-4 space-y-3">
+          <div className="flex justify-between">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-4 w-20" />
+          </div>
+          <Skeleton className="h-2 w-full rounded-full" />
+        </CardContent>
+      </Card>
+      <div className="flex gap-2">
+        <Skeleton className="h-9 flex-1 rounded-md" />
+        <Skeleton className="h-9 w-40 rounded-md" />
+        <Skeleton className="h-9 w-36 rounded-md" />
+      </div>
+      <div className="space-y-2">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Card key={i}>
+            <CardContent className="p-3 flex items-center gap-3">
+              <Skeleton className="h-5 w-5 shrink-0 rounded-full" />
+              <div className="flex-1 space-y-1">
+                <Skeleton className="h-4 w-36" />
+                <Skeleton className="h-3 w-20" />
+              </div>
+              <Skeleton className="h-4 w-16" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  )
   if (!list) notFound()
 
   const estimated = calcEstimated(listItems)

@@ -99,6 +99,7 @@ shopping-list/
     │       ├── label.tsx
     │       ├── progress.tsx
     │       ├── select.tsx
+    │       ├── skeleton.tsx            # Skeleton loaders para o guard de hidratação
     │       ├── tabs.tsx
     │       ├── toast.tsx
     │       └── toaster.tsx             # Renderiza toasts ativos (montado em dashboard/layout.tsx)
@@ -219,16 +220,35 @@ Componentes complexos (como o detalhe da lista) têm sua UI fragmentada em subco
 
 ---
 
-## Guard de hidratação
+## Guard de hidratação e Loaders
 
-Todo componente que lê do store usa `useMounted()`:
+Todo componente que lê do store usa `useMounted()`. Para evitar telas em branco ou repulsa visual durante a hidratação (SSR vs Client mismatch), usamos uma estrutura de UI "fantasma" (`<Skeleton>`) no lugar de retornar `null`.
 
-```ts
+```tsx
 const mounted = useMounted()
-if (!mounted) return null
+
+if (!mounted) return (
+  <div className="space-y-6">
+    <Skeleton className="h-8 w-36" />
+    {/* ... layout que imita a UI final ... */}
+  </div>
+)
 ```
 
 Todos os hooks (`useState`, `useMemo`, `useSensors`, etc.) devem ser declarados **antes** de qualquer `return` condicional.
+
+---
+
+## Zustand Selectors e Performance
+
+Para evitar re-renders desnecessários quando componentes recuperam arrays ou objetos derivados do store (como um `.filter()` direto no seletor), o projeto adota o `useShallow` fornecido pelo Zustand:
+
+```tsx
+import { useShallow } from 'zustand/react/shallow'
+
+// Correto: O componente só re-renderiza se os itens filtrados de fato mudarem (shallow equal)
+const listItems = useAppStore(useShallow((s) => s.items.filter((i) => i.listId === listId)))
+```
 
 ---
 

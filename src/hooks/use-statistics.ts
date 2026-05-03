@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useAppStore } from '@/store/use-app-store'
+import { useShallow } from 'zustand/react/shallow'
 import type { ItemSummary } from '@/types'
 
 export const periodOptions = [
@@ -54,9 +55,7 @@ function getPeriodCutoff(period: Period): Date | null {
 
 export function useStatistics(period: Period): StatisticsResult {
   const history = useAppStore((s) => s.history)
-  const lists = useAppStore((s) => s.lists)
-
-  const activeLists = useMemo(() => lists.filter((l) => !l.isCompleted), [lists])
+  const activeLists = useAppStore(useShallow((s) => s.lists.filter((l) => !l.isCompleted)))
 
   const filteredHistory = useMemo(() => {
     const cutoff = getPeriodCutoff(period)

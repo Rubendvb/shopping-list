@@ -19,6 +19,7 @@ Gerenciador de listas de compras para uso pessoal. Roda 100% no navegador — se
 - Exportar e importar dados como JSON (backup entre dispositivos)
 - Notificações de feedback (Toasts) e diálogos de confirmação para ações importantes
 - Categorias padrão + personalizadas
+- Telas de carregamento suaves (Skeleton Loaders) e alta performance sem re-renders desnecessários
 - Dark mode
 - Layout responsivo (sidebar + hamburger mobile)
 - PWA instalável
