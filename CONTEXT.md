@@ -25,6 +25,7 @@ Aplicativo web de gerenciamento de listas de compras. Single-user, sem autentica
 - Templates de lista pré-configurados (Mercado, Churrasco, Faxina, Festa)
 - Compartilhar lista como texto (Web Share API + fallback clipboard)
 - Exportar/importar dados como JSON (backup)
+- Notificações de feedback (Toasts) e diálogos de confirmação
 - PWA: app instalável (`manifest.webmanifest`, ícones, `apple-touch-icon`)
 - Filtro de período nas estatísticas (último mês, 3 meses, 6 meses, ano, tudo)
 
@@ -67,7 +68,12 @@ shopping-list/
     │       │   ├── lists-client.tsx        # CRUD de listas + templates
     │       │   └── [id]/
     │       │       ├── page.tsx    # Wrapper → <ListDetailClient listId={id}>
-    │       │       └── list-detail-client.tsx  # Detalhe da lista, itens, drag & drop
+    │       │       ├── list-detail-client.tsx  # Detalhe da lista, header, drag & drop wrapper
+    │       │       └── components/ # Componentes interativos modulares
+    │       │           ├── add-item-form.tsx
+    │       │           ├── budget-card.tsx
+    │       │           ├── edit-item-dialog.tsx
+    │       │           └── item-card.tsx
     │       ├── estatisticas/
     │       │   └── page.tsx        # Estatísticas com filtro de período
     │       ├── historico/
@@ -100,6 +106,7 @@ shopping-list/
     │   └── use-app-store.ts        # Zustand store com persist → localStorage
     ├── hooks/
     │   ├── use-mounted.ts          # Retorna true só após mount no client
+    │   ├── use-statistics.ts       # Lógica e cálculos de estatísticas de compras
     │   └── use-toast.ts            # Mini-store de toasts; chamar toast(msg, variant) de qualquer lugar
     ├── types/
     │   └── index.ts                # Tipos compartilhados: List, Item, Category, PurchaseHistory
@@ -207,6 +214,8 @@ dashboard/listas/page.tsx          ← wrapper simples
 ```
 
 Páginas com rota dinâmica (`[id]`) recebem o ID via `useParams()` e passam para o client component.
+
+Componentes complexos (como o detalhe da lista) têm sua UI fragmentada em subcomponentes locais dentro de uma pasta `components/` específica da rota. Isso mantém o arquivo principal limpo e focado no fluxo geral de dados.
 
 ---
 

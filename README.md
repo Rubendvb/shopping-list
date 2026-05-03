@@ -17,6 +17,7 @@ Gerenciador de listas de compras para uso pessoal. Roda 100% no navegador — se
 - Estatísticas com filtro de período: gastos por categoria, gráfico mensal, sugestões inteligentes
 - Compartilhar lista como texto (Web Share API ou cópia para clipboard)
 - Exportar e importar dados como JSON (backup entre dispositivos)
+- Notificações de feedback (Toasts) e diálogos de confirmação para ações importantes
 - Categorias padrão + personalizadas
 - Dark mode
 - Layout responsivo (sidebar + hamburger mobile)
