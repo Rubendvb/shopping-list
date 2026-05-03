@@ -14,6 +14,8 @@ import {
 } from '@/components/ui/dialog'
 import { useAppStore } from '@/store/use-app-store'
 import { useMounted } from '@/hooks/use-mounted'
+import { toast } from '@/hooks/use-toast'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 const EMOJI_SUGGESTIONS = [
   '🛒',
@@ -41,6 +43,7 @@ export function CategoriesClient() {
   const deleteCategory = useAppStore((s) => s.deleteCategory)
 
   const [open, setOpen] = useState(false)
+  const [confirmDeleteCategoryId, setConfirmDeleteCategoryId] = useState<string | null>(null)
   const [name, setName] = useState('')
   const [icon, setIcon] = useState('📦')
   const [color, setColor] = useState('#6366f1')
@@ -54,11 +57,18 @@ export function CategoriesClient() {
     setIcon('📦')
     setColor('#6366f1')
     setOpen(false)
+    toast('Categoria criada', 'success')
   }
 
   function handleDeleteCategory(id: string) {
-    if (!confirm('Excluir esta categoria?')) return
-    deleteCategory(id)
+    setConfirmDeleteCategoryId(id)
+  }
+
+  function confirmDeleteCategory() {
+    if (!confirmDeleteCategoryId) return
+    deleteCategory(confirmDeleteCategoryId)
+    toast('Categoria excluída', 'destructive')
+    setConfirmDeleteCategoryId(null)
   }
 
   const itemCountForCategory = (catId: string) => items.filter((i) => i.categoryId === catId).length
@@ -186,7 +196,8 @@ export function CategoriesClient() {
                   </div>
                   <button
                     onClick={() => handleDeleteCategory(cat.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-100 dark:hover:bg-red-950 text-red-400 hover:text-red-600 transition-all"
+                    aria-label="Excluir categoria"
+                    className="flex items-center justify-center h-10 w-10 md:h-auto md:w-auto md:p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 rounded hover:bg-red-100 dark:hover:bg-red-950 text-red-400 hover:text-red-600 transition-all shrink-0"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -196,6 +207,14 @@ export function CategoriesClient() {
           </div>
         )}
       </div>
+      <ConfirmDialog
+        open={!!confirmDeleteCategoryId}
+        onOpenChange={(open) => !open && setConfirmDeleteCategoryId(null)}
+        title="Excluir categoria"
+        description="Os itens que usam esta categoria ficarão sem categorização. Esta ação não pode ser desfeita."
+        confirmLabel="Excluir"
+        onConfirm={confirmDeleteCategory}
+      />
     </div>
   )
 }

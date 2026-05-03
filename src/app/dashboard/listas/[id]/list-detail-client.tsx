@@ -3,9 +3,30 @@ import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { notFound } from 'next/navigation'
 import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import type { DragEndEvent } from '@dnd-kit/core'
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import {
   ArrowLeft,
   Plus,
   Pencil,
+  Copy,
+  Share2,
+  MoreVertical,
+  GripVertical,
   Trash2,
   CheckCircle2,
   Circle,
@@ -13,6 +34,7 @@ import {
   TrendingUp,
   Search,
   SlidersHorizontal,
+  ShoppingCart,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,6 +43,13 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu'
 import {
   Select,
   SelectContent,
@@ -33,7 +62,9 @@ import { CurrencyInput } from '@/components/ui/currency-input'
 import { UNITS, normalizeUnit, unitAbbr } from '@/lib/units'
 import { useAppStore } from '@/store/use-app-store'
 import { useMounted } from '@/hooks/use-mounted'
-import type { Priority, Unit, Item } from '@/types'
+import { toast } from '@/hooks/use-toast'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import type { Priority, Unit, Item, Category } from '@/types'
 
 const priorityLabel = { HIGH: 'Alta', MEDIUM: 'Média', LOW: 'Baixa' }
 const priorityColor = {
@@ -42,6 +73,156 @@ const priorityColor = {
   LOW: 'secondary' as const,
 }
 const priorityOrder = { HIGH: 0, MEDIUM: 1, LOW: 2 }
+
+function SortableItemCard({
+  item,
+  isDraggable,
+  shoppingMode,
+  isCompleted,
+  categories,
+  onToggle,
+  onEdit,
+  onDelete,
+}: {
+  item: Item
+  isDraggable: boolean
+  shoppingMode: boolean
+  isCompleted: boolean
+  categories: Category[]
+  onToggle: (id: string, isPurchased: boolean) => void
+  onEdit: (item: Item) => void
+  onDelete: (id: string) => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: item.id,
+    disabled: !isDraggable,
+  })
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 10 : undefined,
+    position: 'relative',
+  }
+
+  const category = categories.find((c) => c.id === item.categoryId)
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes}>
+      <Card
+        className={cn(
+          'transition-opacity group',
+          item.isPurchased && 'opacity-60',
+          isDragging && 'shadow-xl ring-2 ring-[var(--primary)] opacity-80'
+        )}
+      >
+        <CardContent className={cn('flex items-center gap-3', shoppingMode ? 'p-4' : 'p-3')}>
+          {isDraggable && (
+            <button
+              {...listeners}
+              className="shrink-0 cursor-grab active:cursor-grabbing touch-none flex items-center justify-center h-10 w-10 md:h-6 md:w-6 text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+              aria-label="Arrastar para reordenar"
+              tabIndex={-1}
+            >
+              <GripVertical className="h-4 w-4" />
+            </button>
+          )}
+
+          <button
+            onClick={() => onToggle(item.id, !item.isPurchased)}
+            className="shrink-0"
+            disabled={isCompleted}
+          >
+            {item.isPurchased ? (
+              <CheckCircle2
+                className={cn(shoppingMode ? 'h-8 w-8' : 'h-5 w-5', 'text-green-500')}
+              />
+            ) : (
+              <Circle
+                className={cn(
+                  shoppingMode ? 'h-8 w-8' : 'h-5 w-5',
+                  'text-[var(--muted-foreground)]'
+                )}
+              />
+            )}
+          </button>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span
+                className={cn(
+                  'font-medium',
+                  shoppingMode && 'text-lg',
+                  item.isPurchased && 'line-through text-[var(--muted-foreground)]'
+                )}
+              >
+                {item.name}
+              </span>
+              <span
+                className={cn(
+                  'text-[var(--muted-foreground)]',
+                  shoppingMode ? 'text-base' : 'text-sm'
+                )}
+              >
+                {item.quantity}
+                {normalizeUnit(item.unit) ? ` ${unitAbbr(normalizeUnit(item.unit)!)}` : 'x'}
+              </span>
+              {!shoppingMode && (
+                <>
+                  <Badge variant={priorityColor[item.priority]} className="text-xs">
+                    {priorityLabel[item.priority]}
+                  </Badge>
+                  {category && (
+                    <span className="text-xs bg-[var(--secondary)] px-1.5 py-0.5 rounded">
+                      {category.icon} {category.name}
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
+            {!shoppingMode && item.notes && (
+              <p className="text-xs text-[var(--muted-foreground)] mt-0.5 truncate">{item.notes}</p>
+            )}
+          </div>
+
+          {!shoppingMode && (
+            <div className="text-right shrink-0">
+              {item.estimatedPrice && (
+                <p className="text-sm font-medium">
+                  {formatCurrency(Math.round(item.estimatedPrice * item.quantity))}
+                </p>
+              )}
+              {item.estimatedPrice && (
+                <p className="text-xs text-[var(--muted-foreground)]">
+                  {formatCurrency(item.estimatedPrice)}/un
+                </p>
+              )}
+            </div>
+          )}
+
+          {!isCompleted && !shoppingMode && (
+            <div className="flex items-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-150">
+              <button
+                onClick={() => onEdit(item)}
+                aria-label="Editar item"
+                className="flex items-center justify-center h-10 w-10 md:h-auto md:w-auto md:p-1 rounded hover:bg-[var(--secondary)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => onDelete(item.id)}
+                aria-label="Excluir item"
+                className="flex items-center justify-center h-10 w-10 md:h-auto md:w-auto md:p-1 rounded hover:bg-red-100 dark:hover:bg-red-950 text-red-400 hover:text-red-600 transition-colors"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
 
 export function ListDetailClient({ listId }: { listId: string }) {
   const router = useRouter()
@@ -54,6 +235,9 @@ export function ListDetailClient({ listId }: { listId: string }) {
   const storeUpdateItem = useAppStore((s) => s.updateItem)
   const storeDeleteItem = useAppStore((s) => s.deleteItem)
   const storeCompleteList = useAppStore((s) => s.completeList)
+  const storeUpdateList = useAppStore((s) => s.updateList)
+  const storeDuplicateList = useAppStore((s) => s.duplicateList)
+  const storeReorderItems = useAppStore((s) => s.reorderItems)
 
   const [showAdd, setShowAdd] = useState(false)
   const [search, setSearch] = useState('')
@@ -68,6 +252,13 @@ export function ListDetailClient({ listId }: { listId: string }) {
   const [itemCategory, setItemCategory] = useState('')
   const [itemPriority, setItemPriority] = useState<Priority>('MEDIUM')
 
+  const [shoppingMode, setShoppingMode] = useState(false)
+  const [confirmCompleteOpen, setConfirmCompleteOpen] = useState(false)
+  const [editListOpen, setEditListOpen] = useState(false)
+  const [editListName, setEditListName] = useState('')
+  const [editListDescription, setEditListDescription] = useState('')
+  const [editListBudget, setEditListBudget] = useState<number | undefined>(undefined)
+
   const [editingItem, setEditingItem] = useState<Item | null>(null)
   const [editName, setEditName] = useState('')
   const [editQty, setEditQty] = useState('1')
@@ -77,6 +268,11 @@ export function ListDetailClient({ listId }: { listId: string }) {
   const [editCategory, setEditCategory] = useState('')
   const [editPriority, setEditPriority] = useState<Priority>('MEDIUM')
   const [editNotes, setEditNotes] = useState('')
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
 
   const listItems = useMemo(() => allItems.filter((i) => i.listId === listId), [allItems, listId])
 
@@ -90,6 +286,10 @@ export function ListDetailClient({ listId }: { listId: string }) {
         return true
       })
       .sort((a, b) => {
+        if (sortBy === 'manual') {
+          if (a.isPurchased !== b.isPurchased) return a.isPurchased ? 1 : -1
+          return (a.order ?? Infinity) - (b.order ?? Infinity)
+        }
         if (sortBy === 'priority') {
           if (a.isPurchased !== b.isPurchased) return a.isPurchased ? 1 : -1
           return priorityOrder[a.priority] - priorityOrder[b.priority]
@@ -133,6 +333,7 @@ export function ListDetailClient({ listId }: { listId: string }) {
     setItemCategory('')
     setItemPriority('MEDIUM')
     setShowAdd(false)
+    toast('Item adicionado', 'success')
   }
 
   function toggleItem(itemId: string, isPurchased: boolean) {
@@ -141,11 +342,130 @@ export function ListDetailClient({ listId }: { listId: string }) {
 
   function deleteItem(itemId: string) {
     storeDeleteItem(itemId)
+    toast('Item removido', 'destructive')
   }
 
   function completeList() {
-    if (!confirm('Marcar lista como concluída? Ela será salva no histórico.')) return
+    setConfirmCompleteOpen(true)
+  }
+
+  function executeCompleteList() {
     storeCompleteList(listId)
+    toast('Lista concluída e salva no histórico!', 'success')
+  }
+
+  function handleDuplicateList() {
+    const newId = storeDuplicateList(listId)
+    toast('Lista duplicada', 'success')
+    router.push(`/dashboard/listas/${newId}`)
+  }
+
+  function openEditList() {
+    if (!list) return
+    setEditListName(list.name)
+    setEditListDescription(list.description ?? '')
+    setEditListBudget(list.budget)
+    setEditListOpen(true)
+  }
+
+  function saveEditList() {
+    if (!editListName.trim()) return
+    storeUpdateList(listId, {
+      name: editListName.trim(),
+      description: editListDescription.trim() || undefined,
+      budget: editListBudget !== undefined ? editListBudget / 100 : null,
+    })
+    setEditListOpen(false)
+    toast('Lista atualizada', 'success')
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const oldIndex = filtered.findIndex((i) => i.id === active.id)
+    const newIndex = filtered.findIndex((i) => i.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+
+    const newFiltered = arrayMove(filtered, oldIndex, newIndex)
+
+    // Reconstruct full list order: interleave new filtered positions back into all items
+    const allSorted = [...listItems].sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity))
+    const filteredIdSet = new Set(filtered.map((i) => i.id))
+    const positions: number[] = allSorted.reduce<number[]>((acc, item, idx) => {
+      if (filteredIdSet.has(item.id)) acc.push(idx)
+      return acc
+    }, [])
+
+    const newAll = [...allSorted]
+    positions.forEach((pos, i) => {
+      newAll[pos] = newFiltered[i]
+    })
+
+    storeReorderItems(listId, newAll.map((i) => i.id))
+  }
+
+  function buildShareText(): string {
+    if (!list) return ''
+    const d = new Date()
+    const day = String(d.getDate()).padStart(2, '0')
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const header = `${list.name} - ${day}/${month}`
+
+    const sorted = [...listItems].sort((a, b) => {
+      if (sortBy === 'name') return a.name.localeCompare(b.name)
+      if (sortBy === 'category') {
+        const catA = categories.find((c) => c.id === a.categoryId)?.name ?? ''
+        const catB = categories.find((c) => c.id === b.categoryId)?.name ?? ''
+        return catA.localeCompare(catB)
+      }
+      if (a.isPurchased !== b.isPurchased) return a.isPurchased ? 1 : -1
+      return priorityOrder[a.priority] - priorityOrder[b.priority]
+    })
+
+    const lines = sorted.map((item) => {
+      const prefix = item.isPurchased ? '✓' : '□'
+      const unit = normalizeUnit(item.unit)
+      const qtyStr =
+        unit && unit !== 'UN'
+          ? `${item.quantity}${unitAbbr(unit)}`
+          : item.quantity !== 1
+            ? `${item.quantity}x`
+            : ''
+      const price = item.isPurchased
+        ? (item.actualPrice ?? item.estimatedPrice)
+        : item.estimatedPrice
+      const totalCents = price !== undefined ? Math.round(price * item.quantity) : undefined
+      const priceStr = totalCents !== undefined ? ` - ${formatCurrency(totalCents)}` : ''
+      const namePart = qtyStr ? `${item.name} ${qtyStr}` : item.name
+      return `${prefix} ${namePart}${priceStr}`
+    })
+
+    return [header, ...lines].join('\n')
+  }
+
+  async function shareList() {
+    if (!list) return
+    const text = buildShareText()
+    const nav = window.navigator
+
+    if ('share' in nav) {
+      try {
+        await nav.share({ title: list.name, text })
+        toast('Lista compartilhada!', 'success')
+      } catch (err) {
+        if (err instanceof Error && err.name !== 'AbortError') {
+          toast('Não foi possível compartilhar a lista', 'destructive')
+        }
+      }
+    } else {
+      try {
+        await window.navigator.clipboard.writeText(text)
+        toast('Lista copiada para a área de transferência', 'success')
+      } catch {
+        toast('Não foi possível compartilhar a lista', 'destructive')
+      }
+    }
   }
 
   function openEdit(item: Item) {
@@ -173,10 +493,11 @@ export function ListDetailClient({ listId }: { listId: string }) {
       notes: editNotes.trim() || undefined,
     })
     setEditingItem(null)
+    toast('Item salvo')
   }
 
   return (
-    <div className="space-y-6 pb-20">
+    <div className="space-y-6 pb-6">
       {/* Header */}
       <div className="flex items-start gap-3">
         <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard/listas')}>
@@ -191,16 +512,88 @@ export function ListDetailClient({ listId }: { listId: string }) {
             <p className="text-[var(--muted-foreground)] text-sm mt-1">{list.description}</p>
           )}
         </div>
-        {!list.isCompleted && (
-          <Button variant="outline" size="sm" onClick={completeList}>
-            <CheckCircle2 className="h-4 w-4" />
-            Concluir
-          </Button>
-        )}
+        <div className="flex items-center gap-1.5">
+          {!list.isCompleted && (
+            <Button
+              variant={shoppingMode ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setShoppingMode((v) => !v)}
+              aria-label="Modo de compras"
+              aria-pressed={shoppingMode}
+            >
+              <ShoppingCart className="h-4 w-4" />
+              <span className="hidden sm:inline">{shoppingMode ? 'Sair' : 'Compras'}</span>
+            </Button>
+          )}
+
+          {/* Secondary actions: inline on md+, collapsed into ⋯ on mobile */}
+          {!shoppingMode && (
+            <>
+              {/* Desktop: show all inline */}
+              <div className="hidden md:flex items-center gap-1.5">
+                {!list.isCompleted && (
+                  <Button variant="ghost" size="icon" onClick={openEditList} aria-label="Editar lista">
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                )}
+                <Button variant="ghost" size="icon" onClick={handleDuplicateList} aria-label="Duplicar lista">
+                  <Copy className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" onClick={shareList} aria-label="Compartilhar lista">
+                  <Share2 className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {/* Mobile: overflow menu */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="md:hidden" aria-label="Mais opções">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {!list.isCompleted && (
+                    <DropdownMenuItem onClick={openEditList}>
+                      <Pencil className="h-4 w-4" />
+                      Editar lista
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onClick={handleDuplicateList}>
+                    <Copy className="h-4 w-4" />
+                    Duplicar lista
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={shareList}>
+                    <Share2 className="h-4 w-4" />
+                    Compartilhar
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          )}
+
+          {!list.isCompleted && !shoppingMode && (
+            <Button variant="outline" size="sm" onClick={completeList} aria-label="Concluir lista">
+              <CheckCircle2 className="h-4 w-4" />
+              <span className="hidden sm:inline">Concluir</span>
+            </Button>
+          )}
+        </div>
       </div>
 
+      {/* Shopping mode progress bar */}
+      {shoppingMode && (
+        <div className="space-y-1">
+          <div className="flex justify-between text-sm text-[var(--muted-foreground)]">
+            <span>{purchased}/{listItems.length} itens</span>
+            <span>{Math.round(progress)}%</span>
+          </div>
+          <Progress value={progress} />
+        </div>
+      )}
+
       {/* Budget card */}
-      <Card className={cn(overBudget && 'border-red-400 transition-colors duration-500')}>
+      {!shoppingMode && <Card className={cn(overBudget && 'border-red-400 transition-colors duration-500')}>
         <CardContent className="p-4 space-y-4">
           {/* Items progress */}
           <div>
@@ -296,10 +689,10 @@ export function ListDetailClient({ listId }: { listId: string }) {
             )}
           </div>
         </CardContent>
-      </Card>
+      </Card>}
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-2 items-center">
+      {!shoppingMode && <div className="flex flex-wrap gap-2 items-center">
         <div className="relative flex-1 min-w-40">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-[var(--muted-foreground)]" />
           <Input
@@ -341,9 +734,10 @@ export function ListDetailClient({ listId }: { listId: string }) {
             <SelectItem value="priority">Prioridade</SelectItem>
             <SelectItem value="name">Nome</SelectItem>
             <SelectItem value="category">Categoria</SelectItem>
+            <SelectItem value="manual">Manual</SelectItem>
           </SelectContent>
         </Select>
-      </div>
+      </div>}
 
       {/* Items list */}
       <div className="space-y-2">
@@ -352,99 +746,38 @@ export function ListDetailClient({ listId }: { listId: string }) {
             {listItems.length === 0 ? 'Adicione o primeiro item à lista' : 'Nenhum item encontrado'}
           </div>
         )}
-        {filtered.map((item) => {
-          const category = categories.find((c) => c.id === item.categoryId)
-          return (
-            <Card
-              key={item.id}
-              className={cn('transition-opacity group', item.isPurchased && 'opacity-60')}
-            >
-              <CardContent className="p-3 flex items-center gap-3">
-                <button
-                  onClick={() => toggleItem(item.id, !item.isPurchased)}
-                  className="shrink-0"
-                  disabled={!!list.isCompleted}
-                >
-                  {item.isPurchased ? (
-                    <CheckCircle2 className="h-5 w-5 text-green-500" />
-                  ) : (
-                    <Circle className="h-5 w-5 text-[var(--muted-foreground)]" />
-                  )}
-                </button>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span
-                      className={cn(
-                        'font-medium',
-                        item.isPurchased && 'line-through text-[var(--muted-foreground)]'
-                      )}
-                    >
-                      {item.name}
-                    </span>
-                    <span className="text-sm text-[var(--muted-foreground)]">
-                      {item.quantity}
-                      {normalizeUnit(item.unit) ? ` ${unitAbbr(normalizeUnit(item.unit)!)}` : 'x'}
-                    </span>
-                    <Badge variant={priorityColor[item.priority]} className="text-xs">
-                      {priorityLabel[item.priority]}
-                    </Badge>
-                    {category && (
-                      <span className="text-xs bg-[var(--secondary)] px-1.5 py-0.5 rounded">
-                        {category.icon} {category.name}
-                      </span>
-                    )}
-                  </div>
-                  {item.notes && (
-                    <p className="text-xs text-[var(--muted-foreground)] mt-0.5 truncate">
-                      {item.notes}
-                    </p>
-                  )}
-                </div>
-
-                <div className="text-right shrink-0">
-                  {item.estimatedPrice && (
-                    <p className="text-sm font-medium">
-                      {formatCurrency(Math.round(item.estimatedPrice * item.quantity))}
-                    </p>
-                  )}
-                  {item.estimatedPrice && (
-                    <p className="text-xs text-[var(--muted-foreground)]">
-                      {formatCurrency(item.estimatedPrice)}/un
-                    </p>
-                  )}
-                </div>
-
-                {!list.isCompleted && (
-                  <div className="flex items-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-150">
-                    <button
-                      onClick={() => openEdit(item)}
-                      aria-label="Editar item"
-                      className="flex items-center justify-center h-10 w-10 md:h-auto md:w-auto md:p-1 rounded hover:bg-[var(--secondary)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => deleteItem(item.id)}
-                      aria-label="Excluir item"
-                      className="flex items-center justify-center h-10 w-10 md:h-auto md:w-auto md:p-1 rounded hover:bg-red-100 dark:hover:bg-red-950 text-red-400 hover:text-red-600 transition-colors"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )
-        })}
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={filtered.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+            {filtered.map((item) => (
+              <SortableItemCard
+                key={item.id}
+                item={item}
+                isDraggable={sortBy === 'manual' && !shoppingMode && !list.isCompleted}
+                shoppingMode={shoppingMode}
+                isCompleted={!!list.isCompleted}
+                categories={categories}
+                onToggle={toggleItem}
+                onEdit={openEdit}
+                onDelete={deleteItem}
+              />
+            ))}
+          </SortableContext>
+        </DndContext>
       </div>
 
+      {/* Mobile spacer — keeps last item above the FAB zone (48px button + 24px bottom + 16px buffer) */}
+      {!list.isCompleted && !shoppingMode && (
+        <div className="h-24 md:hidden" aria-hidden="true" />
+      )}
+
       {/* Add item FAB / inline form */}
-      {!list.isCompleted && (
+      {!list.isCompleted && !shoppingMode && (
         <>
           <Button
-            className="fixed bottom-6 right-6 shadow-lg rounded-full h-12 w-12 p-0 md:hidden"
+            className="fixed right-6 shadow-lg rounded-full h-14 w-14 p-0 md:hidden"
+            style={{ bottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}
             onClick={() => setShowAdd(true)}
+            aria-label="Adicionar item"
           >
             <Plus className="h-6 w-6" />
           </Button>
@@ -611,6 +944,60 @@ export function ListDetailClient({ listId }: { listId: string }) {
             <Button className="w-full" onClick={addItem} disabled={!itemName.trim()}>
               Adicionar item
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={confirmCompleteOpen}
+        onOpenChange={setConfirmCompleteOpen}
+        title="Concluir lista"
+        description={
+          purchased === 0
+            ? 'Nenhum item foi marcado como comprado. Deseja concluir mesmo assim?'
+            : 'A lista será salva no histórico e não poderá mais ser editada.'
+        }
+        confirmLabel="Concluir"
+        variant={purchased === 0 ? 'destructive' : 'default'}
+        onConfirm={executeCompleteList}
+      />
+
+      {/* Edit list dialog */}
+      <Dialog open={editListOpen} onOpenChange={setEditListOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar lista</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div className="space-y-1">
+              <Label>Nome *</Label>
+              <Input
+                autoFocus
+                value={editListName}
+                onChange={(e) => setEditListName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && saveEditList()}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Descrição</Label>
+              <Input
+                placeholder="Opcional"
+                value={editListDescription}
+                onChange={(e) => setEditListDescription(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Orçamento (R$)</Label>
+              <CurrencyInput value={editListBudget} onChange={setEditListBudget} />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setEditListOpen(false)}>
+                Cancelar
+              </Button>
+              <Button className="flex-1" onClick={saveEditList} disabled={!editListName.trim()}>
+                Salvar
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

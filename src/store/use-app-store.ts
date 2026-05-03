@@ -46,10 +46,11 @@ interface AppActions {
   addList: (data: AddListInput) => string
   updateList: (
     id: string,
-    data: Partial<Pick<List, 'name' | 'description' | 'budget' | 'isCompleted'>>
+    data: Partial<Pick<List, 'name' | 'description' | 'isCompleted'>> & { budget?: number | null }
   ) => void
   deleteList: (id: string) => void
   completeList: (id: string) => void
+  duplicateList: (id: string) => string
 
   // Items
   addItem: (data: AddItemInput) => void
@@ -59,6 +60,12 @@ interface AppActions {
   // Categories
   addCategory: (data: { name: string; icon?: string; color?: string }) => void
   deleteCategory: (id: string) => void
+
+  // Items order
+  reorderItems: (listId: string, orderedIds: string[]) => void
+
+  // Data management
+  importData: (data: Pick<AppState, 'lists' | 'items' | 'categories' | 'history'>) => void
 }
 
 // ─── store ───────────────────────────────────────────────────────────────────
@@ -117,6 +124,40 @@ export const useAppStore = create<AppState & AppActions>()(
         }))
       },
 
+      duplicateList: (id) => {
+        const { lists, items } = get()
+        const source = lists.find((l) => l.id === id)
+        if (!source) return id
+
+        const newListId = genId()
+        const t = now()
+        const newList: List = {
+          ...source,
+          id: newListId,
+          name: `${source.name} (cópia)`,
+          isCompleted: false,
+          createdAt: t,
+          updatedAt: t,
+        }
+        const newItems: Item[] = items
+          .filter((i) => i.listId === id)
+          .map((item) => ({
+            ...item,
+            id: genId(),
+            listId: newListId,
+            isPurchased: false,
+            actualPrice: undefined,
+            createdAt: t,
+            updatedAt: t,
+          }))
+
+        set((s) => ({
+          lists: [newList, ...s.lists],
+          items: [...s.items, ...newItems],
+        }))
+        return newListId
+      },
+
       completeList: (id) => {
         const { lists, items, categories } = get()
         const list = lists.find((l) => l.id === id)
@@ -170,6 +211,8 @@ export const useAppStore = create<AppState & AppActions>()(
         priority = 'MEDIUM',
         notes,
       }) => {
+        const existing = get().items.filter((i) => i.listId === listId)
+        const maxOrder = existing.reduce((m, i) => Math.max(m, i.order ?? -1), -1)
         const t = now()
         const item: Item = {
           id: genId(),
@@ -182,6 +225,7 @@ export const useAppStore = create<AppState & AppActions>()(
           categoryId,
           priority,
           isPurchased: false,
+          order: maxOrder + 1,
           notes,
           createdAt: t,
           updatedAt: t,
@@ -219,6 +263,16 @@ export const useAppStore = create<AppState & AppActions>()(
         set((s) => ({ items: s.items.filter((i) => i.id !== id) }))
       },
 
+      reorderItems: (listId, orderedIds) => {
+        set((s) => ({
+          items: s.items.map((item) => {
+            if (item.listId !== listId) return item
+            const idx = orderedIds.indexOf(item.id)
+            return idx !== -1 ? { ...item, order: idx, updatedAt: now() } : item
+          }),
+        }))
+      },
+
       // ── Categories ───────────────────────────────────────────────────────
 
       addCategory: ({ name, icon = '📦', color = '#94a3b8' }) => {
@@ -230,12 +284,19 @@ export const useAppStore = create<AppState & AppActions>()(
       deleteCategory: (id) => {
         set((s) => ({
           categories: s.categories.filter((c) => c.id !== id || c.isDefault),
+          items: s.items.map((i) =>
+            i.categoryId === id ? { ...i, categoryId: undefined } : i
+          ),
         }))
+      },
+
+      importData: ({ lists, items, categories, history }) => {
+        set({ lists, items, categories, history })
       },
     }),
     {
       name: 'listafacil-storage',
-      version: 1,
+      version: 2,
       migrate: (persisted, fromVersion) => {
         const state = persisted as AppState & AppActions
         if (fromVersion < 1) {
@@ -247,6 +308,16 @@ export const useAppStore = create<AppState & AppActions>()(
           const existingIds = new Set(state.categories.map((c) => c.id))
           DEFAULT_CATEGORIES.forEach((dc) => {
             if (!existingIds.has(dc.id)) state.categories.push(dc)
+          })
+        }
+        if (fromVersion < 2) {
+          // Assign order to existing items that don't have it (by list, preserving array position)
+          const counters: Record<string, number> = {}
+          state.items = state.items.map((item) => {
+            if (item.order !== undefined) return item
+            counters[item.listId] = counters[item.listId] ?? 0
+            const order = counters[item.listId]++
+            return { ...item, order }
           })
         }
         return state

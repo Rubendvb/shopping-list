@@ -1,31 +1,35 @@
-'use client'
-import { useState, useCallback } from 'react'
+import { create } from 'zustand'
 
-type ToastVariant = 'default' | 'destructive' | 'success'
+type ToastVariant = 'default' | 'success' | 'destructive'
 
-interface Toast {
+interface ToastItem {
   id: string
-  title: string
-  description?: string
-  variant?: ToastVariant
+  message: string
+  variant: ToastVariant
 }
 
-let toastCount = 0
+interface ToastStore {
+  toasts: ToastItem[]
+  add: (message: string, variant: ToastVariant) => void
+  dismiss: (id: string) => void
+}
 
-export function useToast() {
-  const [toasts, setToasts] = useState<Toast[]>([])
+const useToastStore = create<ToastStore>((set) => ({
+  toasts: [],
+  add: (message, variant) => {
+    const id = Math.random().toString(36).slice(2)
+    set((s) => ({ toasts: [...s.toasts, { id, message, variant }] }))
+    setTimeout(
+      () => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
+      3000
+    )
+  },
+  dismiss: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
+}))
 
-  const toast = useCallback(({ title, description, variant = 'default' }: Omit<Toast, 'id'>) => {
-    const id = String(++toastCount)
-    setToasts((prev) => [...prev, { id, title, description, variant }])
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id))
-    }, 4000)
-  }, [])
+export { useToastStore }
 
-  const dismiss = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id))
-  }, [])
-
-  return { toasts, toast, dismiss }
+/** Call from anywhere — no hook rules required. */
+export function toast(message: string, variant: ToastVariant = 'default') {
+  useToastStore.getState().add(message, variant)
 }

@@ -8,13 +8,19 @@ Gerenciador de listas de compras para uso pessoal. Roda 100% no navegador — se
 - Adicionar e editar itens (quantidade, unidade, preço estimado, preço real, categoria, prioridade, notas)
 - Marcar itens como comprados
 - Filtrar por categoria, status e buscar por nome
+- Ordenação por prioridade, nome, categoria ou manual (drag & drop)
 - Barra de orçamento colorida (verde / laranja / vermelho) com saldo restante ou ultrapassado
+- Modo de compras: exibe apenas o essencial para usar com o celular na mão
+- Duplicar listas e criar a partir de templates pré-configurados
 - Concluir lista → gera snapshot no histórico
-- Histórico com comparação estimado vs real
-- Estatísticas: gastos por categoria, gráfico mensal, itens mais comprados, sugestões
+- Histórico expandível com detalhe completo de cada compra
+- Estatísticas com filtro de período: gastos por categoria, gráfico mensal, sugestões inteligentes
+- Compartilhar lista como texto (Web Share API ou cópia para clipboard)
+- Exportar e importar dados como JSON (backup entre dispositivos)
 - Categorias padrão + personalizadas
 - Dark mode
 - Layout responsivo (sidebar + hamburger mobile)
+- PWA instalável
 
 ## Setup
 
@@ -36,6 +42,7 @@ Abre em `http://localhost:3000`. Sem variáveis de ambiente. Dados persistem em 
 | UI primitivos         | Radix UI                  |
 | Ícones                | lucide-react              |
 | Tema                  | next-themes               |
+| Drag & Drop           | @dnd-kit                  |
 
 ## Comandos
 

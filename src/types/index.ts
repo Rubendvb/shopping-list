@@ -34,6 +34,8 @@ export interface Item {
   categoryId?: string
   priority: Priority
   isPurchased: boolean
+  /** manual sort position within the list */
+  order?: number
   notes?: string
   createdAt: string
   updatedAt: string
