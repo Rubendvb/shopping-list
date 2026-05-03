@@ -22,8 +22,8 @@ export function Sidebar() {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const mounted = useMounted()
-  const lists = useAppStore((s) => s.lists)
-  const activeCount = mounted ? lists.filter((l) => !l.isCompleted).length : 0
+  const rawActiveCount = useAppStore((s) => s.lists.filter((l) => !l.isCompleted).length)
+  const activeCount = mounted ? rawActiveCount : 0
 
   return (
     <>

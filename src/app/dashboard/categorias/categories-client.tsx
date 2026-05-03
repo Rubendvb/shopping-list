@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog'
 import { useAppStore } from '@/store/use-app-store'
 import { useMounted } from '@/hooks/use-mounted'
+import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from '@/hooks/use-toast'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
@@ -48,7 +49,24 @@ export function CategoriesClient() {
   const [icon, setIcon] = useState('📦')
   const [color, setColor] = useState('#6366f1')
 
-  if (!mounted) return null
+  if (!mounted) return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <Skeleton className="h-8 w-28" />
+        <Skeleton className="h-9 w-36 rounded-md" />
+      </div>
+      <Card>
+        <CardContent className="p-4 space-y-3">
+          <Skeleton className="h-4 w-32" />
+          <div className="flex flex-wrap gap-2">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Skeleton key={i} className="h-8 w-28 rounded-full" />
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
 
   function createCategory() {
     if (!name.trim()) return

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { useAppStore } from '@/store/use-app-store'
 import { useMounted } from '@/hooks/use-mounted'
+import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from '@/hooks/use-toast'
 
 interface BackupFile {
@@ -38,7 +39,23 @@ export default function ConfiguracoesPage() {
   const [pendingImport, setPendingImport] = useState<BackupFile | null>(null)
   const [confirmImportOpen, setConfirmImportOpen] = useState(false)
 
-  if (!mounted) return null
+  if (!mounted) return (
+    <div className="space-y-6">
+      <Skeleton className="h-8 w-36" />
+      <div className="grid gap-6 md:grid-cols-2">
+        {Array.from({ length: 2 }).map((_, i) => (
+          <Card key={i}>
+            <CardContent className="p-6 space-y-4">
+              <Skeleton className="h-5 w-28" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-4/5" />
+              <Skeleton className="h-9 w-36 rounded-md" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  )
 
   function handleExport() {
     const data = {

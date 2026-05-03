@@ -25,6 +25,7 @@ Aplicativo web de gerenciamento de listas de compras. Single-user, sem autentica
 - Templates de lista pré-configurados (Mercado, Churrasco, Faxina, Festa)
 - Compartilhar lista como texto (Web Share API + fallback clipboard)
 - Exportar/importar dados como JSON (backup)
+- Notificações de feedback (Toasts) e diálogos de confirmação
 - PWA: app instalável (`manifest.webmanifest`, ícones, `apple-touch-icon`)
 - Filtro de período nas estatísticas (último mês, 3 meses, 6 meses, ano, tudo)
 
@@ -67,7 +68,12 @@ shopping-list/
     │       │   ├── lists-client.tsx        # CRUD de listas + templates
     │       │   └── [id]/
     │       │       ├── page.tsx    # Wrapper → <ListDetailClient listId={id}>
-    │       │       └── list-detail-client.tsx  # Detalhe da lista, itens, drag & drop
+    │       │       ├── list-detail-client.tsx  # Detalhe da lista, header, drag & drop wrapper
+    │       │       └── components/ # Componentes interativos modulares
+    │       │           ├── add-item-form.tsx
+    │       │           ├── budget-card.tsx
+    │       │           ├── edit-item-dialog.tsx
+    │       │           └── item-card.tsx
     │       ├── estatisticas/
     │       │   └── page.tsx        # Estatísticas com filtro de período
     │       ├── historico/
@@ -93,6 +99,7 @@ shopping-list/
     │       ├── label.tsx
     │       ├── progress.tsx
     │       ├── select.tsx
+    │       ├── skeleton.tsx            # Skeleton loaders para o guard de hidratação
     │       ├── tabs.tsx
     │       ├── toast.tsx
     │       └── toaster.tsx             # Renderiza toasts ativos (montado em dashboard/layout.tsx)
@@ -100,6 +107,7 @@ shopping-list/
     │   └── use-app-store.ts        # Zustand store com persist → localStorage
     ├── hooks/
     │   ├── use-mounted.ts          # Retorna true só após mount no client
+    │   ├── use-statistics.ts       # Lógica e cálculos de estatísticas de compras
     │   └── use-toast.ts            # Mini-store de toasts; chamar toast(msg, variant) de qualquer lugar
     ├── types/
     │   └── index.ts                # Tipos compartilhados: List, Item, Category, PurchaseHistory
@@ -208,18 +216,39 @@ dashboard/listas/page.tsx          ← wrapper simples
 
 Páginas com rota dinâmica (`[id]`) recebem o ID via `useParams()` e passam para o client component.
 
+Componentes complexos (como o detalhe da lista) têm sua UI fragmentada em subcomponentes locais dentro de uma pasta `components/` específica da rota. Isso mantém o arquivo principal limpo e focado no fluxo geral de dados.
+
 ---
 
-## Guard de hidratação
+## Guard de hidratação e Loaders
 
-Todo componente que lê do store usa `useMounted()`:
+Todo componente que lê do store usa `useMounted()`. Para evitar telas em branco ou repulsa visual durante a hidratação (SSR vs Client mismatch), usamos uma estrutura de UI "fantasma" (`<Skeleton>`) no lugar de retornar `null`.
 
-```ts
+```tsx
 const mounted = useMounted()
-if (!mounted) return null
+
+if (!mounted) return (
+  <div className="space-y-6">
+    <Skeleton className="h-8 w-36" />
+    {/* ... layout que imita a UI final ... */}
+  </div>
+)
 ```
 
 Todos os hooks (`useState`, `useMemo`, `useSensors`, etc.) devem ser declarados **antes** de qualquer `return` condicional.
+
+---
+
+## Zustand Selectors e Performance
+
+Para evitar re-renders desnecessários quando componentes recuperam arrays ou objetos derivados do store (como um `.filter()` direto no seletor), o projeto adota o `useShallow` fornecido pelo Zustand:
+
+```tsx
+import { useShallow } from 'zustand/react/shallow'
+
+// Correto: O componente só re-renderiza se os itens filtrados de fato mudarem (shallow equal)
+const listItems = useAppStore(useShallow((s) => s.items.filter((i) => i.listId === listId)))
+```
 
 ---
 

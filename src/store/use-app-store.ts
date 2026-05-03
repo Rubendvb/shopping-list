@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { DEFAULT_CATEGORIES } from '@/lib/categories'
+import { calcEstimated, calcActual } from '@/lib/utils'
 import type { List, Item, Category, PurchaseHistory, Priority, Unit } from '@/types'
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -164,13 +165,8 @@ export const useAppStore = create<AppState & AppActions>()(
         if (!list) return
 
         const listItems = items.filter((i) => i.listId === id)
-        const totalEstimated = listItems.reduce(
-          (s, i) => s + (i.estimatedPrice ?? 0) * i.quantity,
-          0
-        )
-        const totalActual = listItems
-          .filter((i) => i.isPurchased)
-          .reduce((s, i) => s + (i.actualPrice ?? i.estimatedPrice ?? 0) * i.quantity, 0)
+        const totalEstimated = calcEstimated(listItems)
+        const totalActual = calcActual(listItems)
 
         const entry: PurchaseHistory = {
           id: genId(),

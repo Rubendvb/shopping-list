@@ -25,3 +25,27 @@ export function toCents(value: string | number): number {
 export function fromCents(cents: number): string {
   return (cents / 100).toFixed(2).replace('.', ',')
 }
+
+type PriceItem = { estimatedPrice?: number; quantity: number }
+
+/** Total estimated cost (cents) for all items regardless of purchase status. */
+export function calcEstimated(items: PriceItem[]): number {
+  return items.reduce((s, i) => s + (i.estimatedPrice ?? 0) * i.quantity, 0)
+}
+
+type ActualItem = {
+  actualPrice?: number
+  estimatedPrice?: number
+  quantity: number
+  isPurchased: boolean
+}
+
+/**
+ * Total actual cost (cents) for purchased items only.
+ * Falls back to estimatedPrice when actualPrice is absent.
+ */
+export function calcActual(items: ActualItem[]): number {
+  return items
+    .filter((i) => i.isPurchased)
+    .reduce((s, i) => s + (i.actualPrice ?? i.estimatedPrice ?? 0) * i.quantity, 0)
+}
