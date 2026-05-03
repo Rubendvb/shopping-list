@@ -39,9 +39,12 @@ src/
       estatisticas/   # Statistics page
       historico/      # Purchase history page
       categorias/     # Categories management
+      configuracoes/  # Backup/restore (export/import JSON)
   components/
     ui/               # Primitive components (button, card, dialog, etc.)
-      currency-input.tsx  # Masked R$ input — value/onChange in cents (integer)
+      currency-input.tsx   # Masked R$ input — value/onChange in cents (integer)
+      confirm-dialog.tsx   # Reusable AlertDialog wrapper (replaces window.confirm)
+      toaster.tsx          # Renders active toasts (mounted in dashboard/layout.tsx)
     sidebar.tsx       # Navigation sidebar with mobile hamburger
     theme-toggle.tsx  # Dark/light mode toggle
   store/
@@ -52,6 +55,7 @@ src/
     units.ts          # Unit type, UNITS list, normalizeUnit(), unitAbbr()
   hooks/
     use-mounted.ts    # Returns true only after client mount
+    use-toast.ts      # Zustand mini-store; call toast(msg, variant) from anywhere
   types/
     index.ts          # Shared TypeScript types
 ```
@@ -71,9 +75,12 @@ All pages call `useMounted()` and return `null` before mount. This prevents loca
 Single store with `persist` middleware writing to localStorage key `"listafacil-storage"`. SSR-safe: storage returns no-ops when `typeof window === "undefined"`.
 
 State: `lists`, `items`, `categories`, `history`  
-Actions: `addList`, `updateList`, `deleteList`, `completeList`, `addItem`, `updateItem`, `deleteItem`, `addCategory`, `deleteCategory`
+Actions: `addList`, `updateList`, `deleteList`, `completeList`, `duplicateList`, `addItem`, `updateItem`, `deleteItem`, `addCategory`, `deleteCategory`, `importData`
 
-`completeList(id)` builds a `PurchaseHistory` snapshot from current items and marks the list as completed.
+- `completeList(id)` builds a `PurchaseHistory` snapshot from current items and marks the list as completed.
+- `duplicateList(id)` copies the list and all its items (with `isPurchased: false`), returns the new list ID.
+- `deleteCategory(id)` also clears `categoryId` on all items that referenced the deleted category.
+- `importData(data)` replaces the entire store state (used by the backup restore flow).
 
 ### Money
 
@@ -86,6 +93,18 @@ Item units use the typed `Unit = 'UN' | 'KG' | 'G' | 'L' | 'ML' | 'CX' | 'PCT'` 
 ### Currency input
 
 `<CurrencyInput value={cents} onChange={setCents} />` — accepts/emits integers (cents). Store actions take reais (floats), so divide by 100 at the call site: `estimatedPrice: price / 100`.
+
+### Toast notifications
+
+Call `toast(message, variant?)` from `@/hooks/use-toast` anywhere in the component tree. Variants: `'default'` | `'success'` | `'destructive'`. The `Toaster` component is mounted once in `dashboard/layout.tsx` and auto-dismisses after 3 s.
+
+### Confirmation dialogs
+
+Use `<ConfirmDialog>` from `@/components/ui/confirm-dialog` instead of `window.confirm()`. Props: `open`, `onOpenChange`, `title`, `description`, `confirmLabel`, `cancelLabel`, `variant` (`'default'` | `'destructive'`), `onConfirm`.
+
+### Shopping mode
+
+`list-detail-client.tsx` has a local `shoppingMode` boolean state. When active: budget card, filters, add-item form, and edit/delete buttons are hidden; checkboxes and item names are enlarged for easy one-handed use. Does not touch the store.
 
 ### Responsive action buttons
 

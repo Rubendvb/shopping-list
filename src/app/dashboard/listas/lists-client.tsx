@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, ShoppingCart, CheckCircle } from 'lucide-react'
+import { Plus, Trash2, Copy, ShoppingCart, CheckCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,6 +19,8 @@ import { formatCurrency } from '@/lib/utils'
 import { CurrencyInput } from '@/components/ui/currency-input'
 import { useAppStore } from '@/store/use-app-store'
 import { useMounted } from '@/hooks/use-mounted'
+import { toast } from '@/hooks/use-toast'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 export function ListsClient() {
   const router = useRouter()
@@ -27,12 +29,14 @@ export function ListsClient() {
   const items = useAppStore((s) => s.items)
   const addList = useAppStore((s) => s.addList)
   const deleteList = useAppStore((s) => s.deleteList)
+  const duplicateList = useAppStore((s) => s.duplicateList)
 
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [budget, setBudget] = useState<number | undefined>(undefined)
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('active')
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   if (!mounted) return null
 
@@ -47,13 +51,27 @@ export function ListsClient() {
     setDescription('')
     setBudget(undefined)
     setOpen(false)
+    toast('Lista criada', 'success')
     router.push(`/dashboard/listas/${id}`)
   }
 
   function handleDeleteList(id: string, e: React.MouseEvent) {
     e.preventDefault()
-    if (!confirm('Excluir esta lista?')) return
-    deleteList(id)
+    setConfirmDeleteId(id)
+  }
+
+  function handleDuplicateList(id: string, e: React.MouseEvent) {
+    e.preventDefault()
+    const newId = duplicateList(id)
+    toast('Lista duplicada', 'success')
+    router.push(`/dashboard/listas/${newId}`)
+  }
+
+  function confirmDeleteList() {
+    if (!confirmDeleteId) return
+    deleteList(confirmDeleteId)
+    toast('Lista excluída', 'destructive')
+    setConfirmDeleteId(null)
   }
 
   const filtered = lists.filter((l) =>
@@ -163,6 +181,13 @@ export function ListsClient() {
                         )}
                       </div>
                       <button
+                        onClick={(e) => handleDuplicateList(list.id, e)}
+                        aria-label="Duplicar lista"
+                        className="flex items-center justify-center h-10 w-10 md:h-auto md:w-auto md:p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 rounded hover:bg-[var(--secondary)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-all shrink-0"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </button>
+                      <button
                         onClick={(e) => handleDeleteList(list.id, e)}
                         aria-label="Excluir lista"
                         className="flex items-center justify-center h-10 w-10 md:h-auto md:w-auto md:p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 rounded hover:bg-red-100 dark:hover:bg-red-950 text-red-500 transition-all ml-1 shrink-0"
@@ -201,6 +226,14 @@ export function ListsClient() {
           })}
         </div>
       )}
+      <ConfirmDialog
+        open={!!confirmDeleteId}
+        onOpenChange={(open) => !open && setConfirmDeleteId(null)}
+        title="Excluir lista"
+        description="Todos os itens desta lista serão removidos permanentemente. Esta ação não pode ser desfeita."
+        confirmLabel="Excluir"
+        onConfirm={confirmDeleteList}
+      />
     </div>
   )
 }

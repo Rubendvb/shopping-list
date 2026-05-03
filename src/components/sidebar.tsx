@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BarChart3, ListChecks, ShoppingCart, Tag, History, Menu, X } from 'lucide-react'
+import { BarChart3, ListChecks, ShoppingCart, Tag, History, Settings, Menu, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { useState } from 'react'
@@ -12,6 +12,7 @@ const navItems = [
   { href: '/dashboard/estatisticas', label: 'Estatísticas', icon: BarChart3 },
   { href: '/dashboard/historico', label: 'Histórico', icon: History },
   { href: '/dashboard/categorias', label: 'Categorias', icon: Tag },
+  { href: '/dashboard/configuracoes', label: 'Configurações', icon: Settings },
 ]
 
 export function Sidebar() {
@@ -51,7 +52,7 @@ export function Sidebar() {
               onClick={() => setOpen(false)}
               className={cn(
                 'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
-                pathname === href
+                (href === '/dashboard' ? pathname === href : pathname.startsWith(href))
                   ? 'bg-[var(--primary)] text-[var(--primary-foreground)]'
                   : 'text-[var(--sidebar-foreground)] hover:bg-[var(--accent)]'
               )}

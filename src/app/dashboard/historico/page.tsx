@@ -65,22 +65,26 @@ export default function HistoricoPage() {
                   </div>
 
                   <div className="mt-3 flex flex-wrap gap-1">
-                    {h.itemsSummary
-                      .filter((i) => i.isPurchased)
-                      .slice(0, 6)
-                      .map((item, idx) => (
-                        <span
-                          key={idx}
-                          className="text-xs bg-[var(--secondary)] px-2 py-0.5 rounded-full"
-                        >
-                          {item.name}
-                        </span>
-                      ))}
-                    {h.itemsSummary.length > 6 && (
-                      <span className="text-xs text-[var(--muted-foreground)]">
-                        +{h.itemsSummary.length - 6} itens
-                      </span>
-                    )}
+                    {(() => {
+                      const purchased = h.itemsSummary.filter((i) => i.isPurchased)
+                      return (
+                        <>
+                          {purchased.slice(0, 6).map((item, idx) => (
+                            <span
+                              key={idx}
+                              className="text-xs bg-[var(--secondary)] px-2 py-0.5 rounded-full"
+                            >
+                              {item.name}
+                            </span>
+                          ))}
+                          {purchased.length > 6 && (
+                            <span className="text-xs text-[var(--muted-foreground)]">
+                              +{purchased.length - 6} itens
+                            </span>
+                          )}
+                        </>
+                      )
+                    })()}
                   </div>
                 </CardContent>
               </Card>

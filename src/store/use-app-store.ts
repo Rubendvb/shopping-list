@@ -46,10 +46,11 @@ interface AppActions {
   addList: (data: AddListInput) => string
   updateList: (
     id: string,
-    data: Partial<Pick<List, 'name' | 'description' | 'budget' | 'isCompleted'>>
+    data: Partial<Pick<List, 'name' | 'description' | 'isCompleted'>> & { budget?: number | null }
   ) => void
   deleteList: (id: string) => void
   completeList: (id: string) => void
+  duplicateList: (id: string) => string
 
   // Items
   addItem: (data: AddItemInput) => void
@@ -59,6 +60,9 @@ interface AppActions {
   // Categories
   addCategory: (data: { name: string; icon?: string; color?: string }) => void
   deleteCategory: (id: string) => void
+
+  // Data management
+  importData: (data: Pick<AppState, 'lists' | 'items' | 'categories' | 'history'>) => void
 }
 
 // ─── store ───────────────────────────────────────────────────────────────────
@@ -115,6 +119,40 @@ export const useAppStore = create<AppState & AppActions>()(
           items: s.items.filter((i) => i.listId !== id),
           history: s.history.filter((h) => h.listId !== id),
         }))
+      },
+
+      duplicateList: (id) => {
+        const { lists, items } = get()
+        const source = lists.find((l) => l.id === id)
+        if (!source) return id
+
+        const newListId = genId()
+        const t = now()
+        const newList: List = {
+          ...source,
+          id: newListId,
+          name: `${source.name} (cópia)`,
+          isCompleted: false,
+          createdAt: t,
+          updatedAt: t,
+        }
+        const newItems: Item[] = items
+          .filter((i) => i.listId === id)
+          .map((item) => ({
+            ...item,
+            id: genId(),
+            listId: newListId,
+            isPurchased: false,
+            actualPrice: undefined,
+            createdAt: t,
+            updatedAt: t,
+          }))
+
+        set((s) => ({
+          lists: [newList, ...s.lists],
+          items: [...s.items, ...newItems],
+        }))
+        return newListId
       },
 
       completeList: (id) => {
@@ -230,7 +268,14 @@ export const useAppStore = create<AppState & AppActions>()(
       deleteCategory: (id) => {
         set((s) => ({
           categories: s.categories.filter((c) => c.id !== id || c.isDefault),
+          items: s.items.map((i) =>
+            i.categoryId === id ? { ...i, categoryId: undefined } : i
+          ),
         }))
+      },
+
+      importData: ({ lists, items, categories, history }) => {
+        set({ lists, items, categories, history })
       },
     }),
     {

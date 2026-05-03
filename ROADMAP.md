@@ -12,7 +12,7 @@ Itens com bugs reais afetando o uso, ou melhorias de alto impacto com esforço b
 
 ---
 
-### 1. Fix: link ativo na sidebar não destaca subpáginas
+### ✅ 1. Fix: link ativo na sidebar não destaca subpáginas
 
 **Arquivo:** `src/components/sidebar.tsx:53`
 
@@ -22,7 +22,7 @@ Itens com bugs reais afetando o uso, ou melhorias de alto impacto com esforço b
 
 ---
 
-### 2. Fix: contagem incorreta no "ver mais" do histórico
+### ✅ 2. Fix: contagem incorreta no "ver mais" do histórico
 
 **Arquivo:** `src/app/dashboard/historico/page.tsx:79`
 
@@ -37,7 +37,7 @@ purchased.slice(0, 6).map(...)
 
 ---
 
-### 3. Fix: botão excluir categoria inacessível no mobile
+### ✅ 3. Fix: botão excluir categoria inacessível no mobile
 
 **Arquivo:** `src/app/dashboard/categorias/categories-client.tsx:189`
 
@@ -52,7 +52,7 @@ aria-label="Excluir categoria"
 
 ---
 
-### 4. Fix: deleteCategory não limpa referências nos itens
+### ✅ 4. Fix: deleteCategory não limpa referências nos itens
 
 **Arquivo:** `src/store/use-app-store.ts` — action `deleteCategory`
 
@@ -72,7 +72,7 @@ deleteCategory: (id) => {
 
 ---
 
-### 5. Feedback visual após ações (toast)
+### ✅ 5. Feedback visual após ações (toast)
 
 **Problema:** Adicionar item, marcar como comprado, concluir lista, excluir — nenhuma ação tem confirmação visual. O usuário precisa observar a mudança de estado para saber que funcionou. Em mobile com scroll isso é especialmente confuso.
 
@@ -83,7 +83,7 @@ deleteCategory: (id) => {
 
 ---
 
-### 6. UI para editar lista (nome, descrição, orçamento)
+### ✅ 6. UI para editar lista (nome, descrição, orçamento)
 
 **Problema:** A action `updateList` existe no store mas não há nenhum botão de edição exposto na interface. O usuário não consegue corrigir o nome de uma lista, ajustar o orçamento ou atualizar a descrição após a criação.
 
@@ -91,7 +91,7 @@ deleteCategory: (id) => {
 
 ---
 
-### 7. Exportar e importar dados (backup JSON)
+### ✅ 7. Exportar e importar dados (backup JSON)
 
 **Problema:** Sendo localStorage-only, não há sincronização entre dispositivos nem backup automático. Trocar de navegador ou limpar dados do browser perde tudo permanentemente.
 
@@ -108,7 +108,7 @@ Melhorias relevantes que aumentam a qualidade do app sem serem bloqueantes.
 
 ---
 
-### 8. Substituir `confirm()` nativo por AlertDialog
+### ✅ 8. Substituir `confirm()` nativo por AlertDialog
 
 **Arquivos:** `lists-client.tsx`, `list-detail-client.tsx`, `categories-client.tsx`
 
@@ -118,7 +118,7 @@ Melhorias relevantes que aumentam a qualidade do app sem serem bloqueantes.
 
 ---
 
-### 9. Duplicar lista
+### ✅ 9. Duplicar lista
 
 **Problema:** Listas recorrentes (mercado semanal, lista mensal) precisam ser recriadas manualmente toda vez — incluindo todos os itens.
 
@@ -128,7 +128,7 @@ Melhorias relevantes que aumentam a qualidade do app sem serem bloqueantes.
 
 ---
 
-### 10. Modo de compras
+### ✅ 10. Modo de compras
 
 **Problema:** A tela de detalhe tem filtros, formulário de adição, barra de orçamento e outras informações — muito conteúdo para usar com o celular na mão dentro do supermercado.
 

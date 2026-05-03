@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   Plus,
   Pencil,
+  Copy,
   Trash2,
   CheckCircle2,
   Circle,
@@ -13,6 +14,7 @@ import {
   TrendingUp,
   Search,
   SlidersHorizontal,
+  ShoppingCart,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -33,6 +35,8 @@ import { CurrencyInput } from '@/components/ui/currency-input'
 import { UNITS, normalizeUnit, unitAbbr } from '@/lib/units'
 import { useAppStore } from '@/store/use-app-store'
 import { useMounted } from '@/hooks/use-mounted'
+import { toast } from '@/hooks/use-toast'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import type { Priority, Unit, Item } from '@/types'
 
 const priorityLabel = { HIGH: 'Alta', MEDIUM: 'Média', LOW: 'Baixa' }
@@ -54,6 +58,8 @@ export function ListDetailClient({ listId }: { listId: string }) {
   const storeUpdateItem = useAppStore((s) => s.updateItem)
   const storeDeleteItem = useAppStore((s) => s.deleteItem)
   const storeCompleteList = useAppStore((s) => s.completeList)
+  const storeUpdateList = useAppStore((s) => s.updateList)
+  const storeDuplicateList = useAppStore((s) => s.duplicateList)
 
   const [showAdd, setShowAdd] = useState(false)
   const [search, setSearch] = useState('')
@@ -67,6 +73,13 @@ export function ListDetailClient({ listId }: { listId: string }) {
   const [itemPrice, setItemPrice] = useState<number | undefined>(undefined)
   const [itemCategory, setItemCategory] = useState('')
   const [itemPriority, setItemPriority] = useState<Priority>('MEDIUM')
+
+  const [shoppingMode, setShoppingMode] = useState(false)
+  const [confirmCompleteOpen, setConfirmCompleteOpen] = useState(false)
+  const [editListOpen, setEditListOpen] = useState(false)
+  const [editListName, setEditListName] = useState('')
+  const [editListDescription, setEditListDescription] = useState('')
+  const [editListBudget, setEditListBudget] = useState<number | undefined>(undefined)
 
   const [editingItem, setEditingItem] = useState<Item | null>(null)
   const [editName, setEditName] = useState('')
@@ -133,6 +146,7 @@ export function ListDetailClient({ listId }: { listId: string }) {
     setItemCategory('')
     setItemPriority('MEDIUM')
     setShowAdd(false)
+    toast('Item adicionado', 'success')
   }
 
   function toggleItem(itemId: string, isPurchased: boolean) {
@@ -141,11 +155,41 @@ export function ListDetailClient({ listId }: { listId: string }) {
 
   function deleteItem(itemId: string) {
     storeDeleteItem(itemId)
+    toast('Item removido', 'destructive')
   }
 
   function completeList() {
-    if (!confirm('Marcar lista como concluída? Ela será salva no histórico.')) return
+    setConfirmCompleteOpen(true)
+  }
+
+  function executeCompleteList() {
     storeCompleteList(listId)
+    toast('Lista concluída e salva no histórico!', 'success')
+  }
+
+  function handleDuplicateList() {
+    const newId = storeDuplicateList(listId)
+    toast('Lista duplicada', 'success')
+    router.push(`/dashboard/listas/${newId}`)
+  }
+
+  function openEditList() {
+    if (!list) return
+    setEditListName(list.name)
+    setEditListDescription(list.description ?? '')
+    setEditListBudget(list.budget)
+    setEditListOpen(true)
+  }
+
+  function saveEditList() {
+    if (!editListName.trim()) return
+    storeUpdateList(listId, {
+      name: editListName.trim(),
+      description: editListDescription.trim() || undefined,
+      budget: editListBudget !== undefined ? editListBudget / 100 : null,
+    })
+    setEditListOpen(false)
+    toast('Lista atualizada', 'success')
   }
 
   function openEdit(item: Item) {
@@ -173,6 +217,7 @@ export function ListDetailClient({ listId }: { listId: string }) {
       notes: editNotes.trim() || undefined,
     })
     setEditingItem(null)
+    toast('Item salvo')
   }
 
   return (
@@ -191,16 +236,56 @@ export function ListDetailClient({ listId }: { listId: string }) {
             <p className="text-[var(--muted-foreground)] text-sm mt-1">{list.description}</p>
           )}
         </div>
-        {!list.isCompleted && (
-          <Button variant="outline" size="sm" onClick={completeList}>
-            <CheckCircle2 className="h-4 w-4" />
-            Concluir
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {!list.isCompleted && (
+            <Button
+              variant={shoppingMode ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setShoppingMode((v) => !v)}
+              aria-label="Modo de compras"
+              aria-pressed={shoppingMode}
+            >
+              <ShoppingCart className="h-4 w-4" />
+              <span className="hidden sm:inline">{shoppingMode ? 'Sair' : 'Compras'}</span>
+            </Button>
+          )}
+          {!list.isCompleted && !shoppingMode && (
+            <Button variant="ghost" size="icon" onClick={openEditList} aria-label="Editar lista">
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
+          {!shoppingMode && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleDuplicateList}
+              aria-label="Duplicar lista"
+            >
+              <Copy className="h-4 w-4" />
+            </Button>
+          )}
+          {!list.isCompleted && !shoppingMode && (
+            <Button variant="outline" size="sm" onClick={completeList}>
+              <CheckCircle2 className="h-4 w-4" />
+              Concluir
+            </Button>
+          )}
+        </div>
       </div>
 
+      {/* Shopping mode progress bar */}
+      {shoppingMode && (
+        <div className="space-y-1">
+          <div className="flex justify-between text-sm text-[var(--muted-foreground)]">
+            <span>{purchased}/{listItems.length} itens</span>
+            <span>{Math.round(progress)}%</span>
+          </div>
+          <Progress value={progress} />
+        </div>
+      )}
+
       {/* Budget card */}
-      <Card className={cn(overBudget && 'border-red-400 transition-colors duration-500')}>
+      {!shoppingMode && <Card className={cn(overBudget && 'border-red-400 transition-colors duration-500')}>
         <CardContent className="p-4 space-y-4">
           {/* Items progress */}
           <div>
@@ -296,10 +381,10 @@ export function ListDetailClient({ listId }: { listId: string }) {
             )}
           </div>
         </CardContent>
-      </Card>
+      </Card>}
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-2 items-center">
+      {!shoppingMode && <div className="flex flex-wrap gap-2 items-center">
         <div className="relative flex-1 min-w-40">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-[var(--muted-foreground)]" />
           <Input
@@ -343,7 +428,7 @@ export function ListDetailClient({ listId }: { listId: string }) {
             <SelectItem value="category">Categoria</SelectItem>
           </SelectContent>
         </Select>
-      </div>
+      </div>}
 
       {/* Items list */}
       <div className="space-y-2">
@@ -359,16 +444,16 @@ export function ListDetailClient({ listId }: { listId: string }) {
               key={item.id}
               className={cn('transition-opacity group', item.isPurchased && 'opacity-60')}
             >
-              <CardContent className="p-3 flex items-center gap-3">
+              <CardContent className={cn('flex items-center gap-3', shoppingMode ? 'p-4' : 'p-3')}>
                 <button
                   onClick={() => toggleItem(item.id, !item.isPurchased)}
                   className="shrink-0"
                   disabled={!!list.isCompleted}
                 >
                   {item.isPurchased ? (
-                    <CheckCircle2 className="h-5 w-5 text-green-500" />
+                    <CheckCircle2 className={cn(shoppingMode ? 'h-8 w-8' : 'h-5 w-5', 'text-green-500')} />
                   ) : (
-                    <Circle className="h-5 w-5 text-[var(--muted-foreground)]" />
+                    <Circle className={cn(shoppingMode ? 'h-8 w-8' : 'h-5 w-5', 'text-[var(--muted-foreground)]')} />
                   )}
                 </button>
 
@@ -377,45 +462,52 @@ export function ListDetailClient({ listId }: { listId: string }) {
                     <span
                       className={cn(
                         'font-medium',
+                        shoppingMode && 'text-lg',
                         item.isPurchased && 'line-through text-[var(--muted-foreground)]'
                       )}
                     >
                       {item.name}
                     </span>
-                    <span className="text-sm text-[var(--muted-foreground)]">
+                    <span className={cn('text-[var(--muted-foreground)]', shoppingMode ? 'text-base' : 'text-sm')}>
                       {item.quantity}
                       {normalizeUnit(item.unit) ? ` ${unitAbbr(normalizeUnit(item.unit)!)}` : 'x'}
                     </span>
-                    <Badge variant={priorityColor[item.priority]} className="text-xs">
-                      {priorityLabel[item.priority]}
-                    </Badge>
-                    {category && (
-                      <span className="text-xs bg-[var(--secondary)] px-1.5 py-0.5 rounded">
-                        {category.icon} {category.name}
-                      </span>
+                    {!shoppingMode && (
+                      <>
+                        <Badge variant={priorityColor[item.priority]} className="text-xs">
+                          {priorityLabel[item.priority]}
+                        </Badge>
+                        {category && (
+                          <span className="text-xs bg-[var(--secondary)] px-1.5 py-0.5 rounded">
+                            {category.icon} {category.name}
+                          </span>
+                        )}
+                      </>
                     )}
                   </div>
-                  {item.notes && (
+                  {!shoppingMode && item.notes && (
                     <p className="text-xs text-[var(--muted-foreground)] mt-0.5 truncate">
                       {item.notes}
                     </p>
                   )}
                 </div>
 
-                <div className="text-right shrink-0">
-                  {item.estimatedPrice && (
-                    <p className="text-sm font-medium">
-                      {formatCurrency(Math.round(item.estimatedPrice * item.quantity))}
-                    </p>
-                  )}
-                  {item.estimatedPrice && (
-                    <p className="text-xs text-[var(--muted-foreground)]">
-                      {formatCurrency(item.estimatedPrice)}/un
-                    </p>
-                  )}
-                </div>
+                {!shoppingMode && (
+                  <div className="text-right shrink-0">
+                    {item.estimatedPrice && (
+                      <p className="text-sm font-medium">
+                        {formatCurrency(Math.round(item.estimatedPrice * item.quantity))}
+                      </p>
+                    )}
+                    {item.estimatedPrice && (
+                      <p className="text-xs text-[var(--muted-foreground)]">
+                        {formatCurrency(item.estimatedPrice)}/un
+                      </p>
+                    )}
+                  </div>
+                )}
 
-                {!list.isCompleted && (
+                {!list.isCompleted && !shoppingMode && (
                   <div className="flex items-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-150">
                     <button
                       onClick={() => openEdit(item)}
@@ -440,7 +532,7 @@ export function ListDetailClient({ listId }: { listId: string }) {
       </div>
 
       {/* Add item FAB / inline form */}
-      {!list.isCompleted && (
+      {!list.isCompleted && !shoppingMode && (
         <>
           <Button
             className="fixed bottom-6 right-6 shadow-lg rounded-full h-12 w-12 p-0 md:hidden"
@@ -611,6 +703,56 @@ export function ListDetailClient({ listId }: { listId: string }) {
             <Button className="w-full" onClick={addItem} disabled={!itemName.trim()}>
               Adicionar item
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={confirmCompleteOpen}
+        onOpenChange={setConfirmCompleteOpen}
+        title="Concluir lista"
+        description="A lista será salva no histórico e não poderá mais ser editada."
+        confirmLabel="Concluir"
+        variant="default"
+        onConfirm={executeCompleteList}
+      />
+
+      {/* Edit list dialog */}
+      <Dialog open={editListOpen} onOpenChange={setEditListOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar lista</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div className="space-y-1">
+              <Label>Nome *</Label>
+              <Input
+                autoFocus
+                value={editListName}
+                onChange={(e) => setEditListName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && saveEditList()}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Descrição</Label>
+              <Input
+                placeholder="Opcional"
+                value={editListDescription}
+                onChange={(e) => setEditListDescription(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Orçamento (R$)</Label>
+              <CurrencyInput value={editListBudget} onChange={setEditListBudget} />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setEditListOpen(false)}>
+                Cancelar
+              </Button>
+              <Button className="flex-1" onClick={saveEditList} disabled={!editListName.trim()}>
+                Salvar
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
