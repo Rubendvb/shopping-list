@@ -4,6 +4,9 @@ import { usePathname } from 'next/navigation'
 import { BarChart3, ListChecks, ShoppingCart, Tag, History, Settings, Menu, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { Badge } from '@/components/ui/badge'
+import { useAppStore } from '@/store/use-app-store'
+import { useMounted } from '@/hooks/use-mounted'
 import { useState } from 'react'
 
 const navItems = [
@@ -18,6 +21,9 @@ const navItems = [
 export function Sidebar() {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
+  const mounted = useMounted()
+  const lists = useAppStore((s) => s.lists)
+  const activeCount = mounted ? lists.filter((l) => !l.isCompleted).length : 0
 
   return (
     <>
@@ -45,22 +51,39 @@ export function Sidebar() {
         </div>
 
         <nav className="flex-1 p-4 space-y-1">
-          {navItems.map(({ href, label, icon: Icon }) => (
-            <Link
-              key={href}
-              href={href}
-              onClick={() => setOpen(false)}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
-                (href === '/dashboard' ? pathname === href : pathname.startsWith(href))
-                  ? 'bg-[var(--primary)] text-[var(--primary-foreground)]'
-                  : 'text-[var(--sidebar-foreground)] hover:bg-[var(--accent)]'
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              {label}
-            </Link>
-          ))}
+          {navItems.map(({ href, label, icon: Icon }) => {
+            const isActive = href === '/dashboard' ? pathname === href : pathname.startsWith(href)
+            const showBadge = href === '/dashboard/listas' && activeCount > 0
+            return (
+              <Link
+                key={href}
+                href={href}
+                onClick={() => setOpen(false)}
+                className={cn(
+                  'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                  isActive
+                    ? 'bg-[var(--primary)] text-[var(--primary-foreground)]'
+                    : 'text-[var(--sidebar-foreground)] hover:bg-[var(--accent)]'
+                )}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="flex-1">{label}</span>
+                {showBadge && (
+                  <Badge
+                    className={cn(
+                      'ml-auto px-1.5 py-0 min-w-[1.25rem] justify-center text-xs leading-5',
+                      isActive
+                        ? 'bg-white/20 text-white border-transparent hover:bg-white/20'
+                        : 'bg-[var(--primary)] text-[var(--primary-foreground)] border-transparent'
+                    )}
+                    aria-label={`${activeCount} lista${activeCount !== 1 ? 's' : ''} ativa${activeCount !== 1 ? 's' : ''}`}
+                  >
+                    {activeCount > 99 ? '99+' : activeCount}
+                  </Badge>
+                )}
+              </Link>
+            )
+          })}
         </nav>
 
         <div className="p-4 border-t border-[var(--sidebar-border)]">

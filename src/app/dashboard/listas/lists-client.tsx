@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, Copy, ShoppingCart, CheckCircle } from 'lucide-react'
+import { Plus, Trash2, Copy, ShoppingCart, CheckCircle, LayoutTemplate } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,12 +15,20 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { formatCurrency } from '@/lib/utils'
 import { CurrencyInput } from '@/components/ui/currency-input'
 import { useAppStore } from '@/store/use-app-store'
 import { useMounted } from '@/hooks/use-mounted'
 import { toast } from '@/hooks/use-toast'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { TEMPLATES } from '@/lib/templates'
 
 export function ListsClient() {
   const router = useRouter()
@@ -28,6 +36,7 @@ export function ListsClient() {
   const lists = useAppStore((s) => s.lists)
   const items = useAppStore((s) => s.items)
   const addList = useAppStore((s) => s.addList)
+  const addItem = useAppStore((s) => s.addItem)
   const deleteList = useAppStore((s) => s.deleteList)
   const duplicateList = useAppStore((s) => s.duplicateList)
 
@@ -35,10 +44,29 @@ export function ListsClient() {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [budget, setBudget] = useState<number | undefined>(undefined)
+  const [selectedTemplateId, setSelectedTemplateId] = useState('')
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('active')
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
+  const selectedTemplate = TEMPLATES.find((t) => t.id === selectedTemplateId) ?? null
+
   if (!mounted) return null
+
+  function resetDialog() {
+    setName('')
+    setDescription('')
+    setBudget(undefined)
+    setSelectedTemplateId('')
+  }
+
+  function handleTemplateChange(templateId: string) {
+    setSelectedTemplateId(templateId)
+    const tpl = TEMPLATES.find((t) => t.id === templateId)
+    if (tpl) {
+      setName(tpl.name)
+      setDescription(tpl.description)
+    }
+  }
 
   function createList() {
     if (!name.trim()) return
@@ -47,11 +75,23 @@ export function ListsClient() {
       description: description.trim() || undefined,
       budget: budget !== undefined ? budget / 100 : undefined,
     })
-    setName('')
-    setDescription('')
-    setBudget(undefined)
+    if (selectedTemplate) {
+      for (const item of selectedTemplate.items) {
+        addItem({
+          listId: id,
+          name: item.name,
+          quantity: item.quantity,
+          unit: item.unit,
+          categoryId: item.categoryId,
+          priority: item.priority,
+        })
+      }
+      toast(`Lista criada com ${selectedTemplate.items.length} itens`, 'success')
+    } else {
+      toast('Lista criada', 'success')
+    }
+    resetDialog()
     setOpen(false)
-    toast('Lista criada', 'success')
     router.push(`/dashboard/listas/${id}`)
   }
 
@@ -82,7 +122,7 @@ export function ListsClient() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Minhas Listas</h1>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetDialog() }}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="h-4 w-4" />
@@ -94,6 +134,51 @@ export function ListsClient() {
               <DialogTitle>Nova lista de compras</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 mt-2">
+              {/* Template selector */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1.5">
+                  <LayoutTemplate className="h-3.5 w-3.5" />
+                  Usar template
+                </Label>
+                <Select value={selectedTemplateId} onValueChange={handleTemplateChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Nenhum (lista em branco)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none-placeholder" disabled className="hidden" />
+                    {TEMPLATES.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Template preview */}
+              {selectedTemplate && (
+                <div className="rounded-md border border-[var(--border)] bg-[var(--secondary)]/40 p-3 space-y-2">
+                  <p className="text-xs font-medium text-[var(--muted-foreground)]">
+                    {selectedTemplate.items.length} itens incluídos
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    {selectedTemplate.items.slice(0, 8).map((item) => (
+                      <span
+                        key={item.name}
+                        className="text-xs bg-[var(--secondary)] px-2 py-0.5 rounded-full"
+                      >
+                        {item.name}
+                      </span>
+                    ))}
+                    {selectedTemplate.items.length > 8 && (
+                      <span className="text-xs text-[var(--muted-foreground)] self-center">
+                        +{selectedTemplate.items.length - 8} mais
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label>Nome da lista *</Label>
                 <Input
@@ -116,7 +201,7 @@ export function ListsClient() {
                 <CurrencyInput value={budget} onChange={setBudget} />
               </div>
               <Button className="w-full" onClick={createList} disabled={!name.trim()}>
-                Criar lista
+                {selectedTemplate ? `Criar lista com ${selectedTemplate.items.length} itens` : 'Criar lista'}
               </Button>
             </div>
           </DialogContent>

@@ -44,6 +44,7 @@ src/
     ui/               # Primitive components (button, card, dialog, etc.)
       currency-input.tsx   # Masked R$ input — value/onChange in cents (integer)
       confirm-dialog.tsx   # Reusable AlertDialog wrapper (replaces window.confirm)
+      dropdown-menu.tsx    # DropdownMenu wrapper (@radix-ui/react-dropdown-menu)
       toaster.tsx          # Renders active toasts (mounted in dashboard/layout.tsx)
     sidebar.tsx       # Navigation sidebar with mobile hamburger
     theme-toggle.tsx  # Dark/light mode toggle
@@ -75,12 +76,14 @@ All pages call `useMounted()` and return `null` before mount. This prevents loca
 Single store with `persist` middleware writing to localStorage key `"listafacil-storage"`. SSR-safe: storage returns no-ops when `typeof window === "undefined"`.
 
 State: `lists`, `items`, `categories`, `history`  
-Actions: `addList`, `updateList`, `deleteList`, `completeList`, `duplicateList`, `addItem`, `updateItem`, `deleteItem`, `addCategory`, `deleteCategory`, `importData`
+Actions: `addList`, `updateList`, `deleteList`, `completeList`, `duplicateList`, `addItem`, `updateItem`, `deleteItem`, `reorderItems`, `addCategory`, `deleteCategory`, `importData`
 
 - `completeList(id)` builds a `PurchaseHistory` snapshot from current items and marks the list as completed.
 - `duplicateList(id)` copies the list and all its items (with `isPurchased: false`), returns the new list ID.
 - `deleteCategory(id)` also clears `categoryId` on all items that referenced the deleted category.
+- `reorderItems(listId, orderedIds)` updates the `order` field of all items in the list according to the new ID array.
 - `importData(data)` replaces the entire store state (used by the backup restore flow).
+- `addItem` auto-assigns `order = max(existing orders) + 1` so new items always land at the bottom in manual sort.
 
 ### Money
 
@@ -106,6 +109,18 @@ Use `<ConfirmDialog>` from `@/components/ui/confirm-dialog` instead of `window.c
 
 `list-detail-client.tsx` has a local `shoppingMode` boolean state. When active: budget card, filters, add-item form, and edit/delete buttons are hidden; checkboxes and item names are enlarged for easy one-handed use. Does not touch the store.
 
+### List detail header actions
+
+On **mobile**, secondary actions (Edit list, Duplicate, Share) are collapsed into a `DropdownMenu` (⋯ button) to avoid header overflow. Primary actions (Shopping mode toggle, Complete) remain inline. On **desktop** (`md+`), all buttons are shown inline. Use `<DropdownMenu>` from `@/components/ui/dropdown-menu` for any new overflow menus.
+
+### Share list
+
+`shareList()` in `list-detail-client.tsx` generates a plain-text shopping list (`✓`/`□` per item with quantity, unit and total price). Uses `navigator.share` (Web Share API) when available — shows native share sheet and toasts on success. Falls back to `navigator.clipboard.writeText` with a "copied" toast. Catches `AbortError` silently (user cancelled).
+
+### Manual sort (drag & drop)
+
+`Item` has an `order?: number` field. Select "Manual" in the sort dropdown to enable drag handles (⠿ `GripVertical`). Uses `@dnd-kit/core` + `@dnd-kit/sortable`. `PointerSensor` has `activationConstraint: { distance: 8 }` to prevent drag/scroll conflict on mobile. The drag handle uses `touch-none` and a 40×40 px touch target on mobile. On drag end, `reorderItems` is called with the new full order. In manual mode, pending items always sort before purchased items within each group; `order` determines position within each group.
+
 ### Responsive action buttons
 
 Item action buttons (edit, delete) use `opacity-100 md:opacity-0 md:group-hover:opacity-100` so they are always visible on mobile and appear on hover on desktop. Touch targets on mobile use `h-10 w-10` (40 px). Always include `aria-label` on icon-only buttons.
@@ -120,4 +135,8 @@ Note: `cat-mercado` ID is kept for backward compatibility — it was renamed fro
 
 ### Store versioning and migration
 
-The store uses `version: 1` in the persist config. The `migrate` function runs automatically when localStorage contains data from an older version (v0 → v1: renames "Mercado" → "Mercearia", inserts `cat-congelados` and `cat-utilidades`). When adding future breaking changes to default data, bump the version and extend `migrate`.
+The store uses `version: 2` in the persist config. The `migrate` function runs automatically on version mismatch:
+- v0 → v1: renames "Mercado" → "Mercearia", inserts `cat-congelados` and `cat-utilidades`.
+- v1 → v2: assigns sequential `order` values to items that lack the field (by list, preserving array position).
+
+When adding future breaking changes, bump the version and extend `migrate` with a `fromVersion < N` block.

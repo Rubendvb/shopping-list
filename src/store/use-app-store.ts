@@ -61,6 +61,9 @@ interface AppActions {
   addCategory: (data: { name: string; icon?: string; color?: string }) => void
   deleteCategory: (id: string) => void
 
+  // Items order
+  reorderItems: (listId: string, orderedIds: string[]) => void
+
   // Data management
   importData: (data: Pick<AppState, 'lists' | 'items' | 'categories' | 'history'>) => void
 }
@@ -208,6 +211,8 @@ export const useAppStore = create<AppState & AppActions>()(
         priority = 'MEDIUM',
         notes,
       }) => {
+        const existing = get().items.filter((i) => i.listId === listId)
+        const maxOrder = existing.reduce((m, i) => Math.max(m, i.order ?? -1), -1)
         const t = now()
         const item: Item = {
           id: genId(),
@@ -220,6 +225,7 @@ export const useAppStore = create<AppState & AppActions>()(
           categoryId,
           priority,
           isPurchased: false,
+          order: maxOrder + 1,
           notes,
           createdAt: t,
           updatedAt: t,
@@ -257,6 +263,16 @@ export const useAppStore = create<AppState & AppActions>()(
         set((s) => ({ items: s.items.filter((i) => i.id !== id) }))
       },
 
+      reorderItems: (listId, orderedIds) => {
+        set((s) => ({
+          items: s.items.map((item) => {
+            if (item.listId !== listId) return item
+            const idx = orderedIds.indexOf(item.id)
+            return idx !== -1 ? { ...item, order: idx, updatedAt: now() } : item
+          }),
+        }))
+      },
+
       // ── Categories ───────────────────────────────────────────────────────
 
       addCategory: ({ name, icon = '📦', color = '#94a3b8' }) => {
@@ -280,7 +296,7 @@ export const useAppStore = create<AppState & AppActions>()(
     }),
     {
       name: 'listafacil-storage',
-      version: 1,
+      version: 2,
       migrate: (persisted, fromVersion) => {
         const state = persisted as AppState & AppActions
         if (fromVersion < 1) {
@@ -292,6 +308,16 @@ export const useAppStore = create<AppState & AppActions>()(
           const existingIds = new Set(state.categories.map((c) => c.id))
           DEFAULT_CATEGORIES.forEach((dc) => {
             if (!existingIds.has(dc.id)) state.categories.push(dc)
+          })
+        }
+        if (fromVersion < 2) {
+          // Assign order to existing items that don't have it (by list, preserving array position)
+          const counters: Record<string, number> = {}
+          state.items = state.items.map((item) => {
+            if (item.order !== undefined) return item
+            counters[item.listId] = counters[item.listId] ?? 0
+            const order = counters[item.listId]++
+            return { ...item, order }
           })
         }
         return state

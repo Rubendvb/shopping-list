@@ -140,7 +140,7 @@ Melhorias relevantes que aumentam a qualidade do app sem serem bloqueantes.
 
 ---
 
-### 11. Botão "Concluir lista" com validação
+### ✅ 11. Botão "Concluir lista" com validação
 
 **Problema:** É possível concluir uma lista com 0 itens comprados, sem nenhum aviso. Isso gera histórico com `totalActual: 0` e pode ser um erro acidental.
 
@@ -148,7 +148,7 @@ Melhorias relevantes que aumentam a qualidade do app sem serem bloqueantes.
 
 ---
 
-### 12. Badge de contagem na sidebar
+### ✅ 12. Badge de contagem na sidebar
 
 **Problema:** Não há indicação visual de quantas listas ativas existem sem entrar na tela "Minhas Listas".
 
@@ -156,7 +156,7 @@ Melhorias relevantes que aumentam a qualidade do app sem serem bloqueantes.
 
 ---
 
-### 13. Adicionar item diretamente das sugestões
+### ✅ 13. Adicionar item diretamente das sugestões
 
 **Problema:** A página de Estatísticas mostra os itens mais comprados como "Sugestões inteligentes", mas são apenas tags visuais sem ação. O usuário precisa ir manualmente para uma lista e digitar o nome de novo.
 
@@ -164,7 +164,7 @@ Melhorias relevantes que aumentam a qualidade do app sem serem bloqueantes.
 
 ---
 
-### 14. Histórico expandível com detalhe completo
+### ✅ 14. Histórico expandível com detalhe completo
 
 **Problema:** Cada entrada do histórico mostra no máximo 6 itens comprados. Não há como ver o detalhamento completo de uma compra passada — quantidades, preços reais, itens não comprados.
 
@@ -172,7 +172,7 @@ Melhorias relevantes que aumentam a qualidade do app sem serem bloqueantes.
 
 ---
 
-### 15. Filtro de período nas estatísticas
+### ✅ 15. Filtro de período nas estatísticas
 
 **Problema:** A página de Estatísticas agrega todos os dados desde sempre, sem possibilidade de filtrar por período. Com o tempo, dados antigos distorcem as métricas atuais.
 
@@ -180,7 +180,7 @@ Melhorias relevantes que aumentam a qualidade do app sem serem bloqueantes.
 
 ---
 
-### 16. Fix: FAB mobile sobrepõe conteúdo
+### ✅ 16. Fix: FAB mobile sobrepõe conteúdo
 
 **Arquivo:** `src/app/dashboard/listas/[id]/list-detail-client.tsx`
 
@@ -196,7 +196,7 @@ Melhorias incrementais ou opcionais que agregam valor sem urgência.
 
 ---
 
-### 17. Templates de lista
+### ✅ 17. Templates de lista
 
 **Descrição:** Listas pré-configuradas com itens comuns para casos de uso frequentes (ex: "Mercado básico", "Churrasco", "Faxina doméstica", "Festa").
 
@@ -204,7 +204,7 @@ Melhorias incrementais ou opcionais que agregam valor sem urgência.
 
 ---
 
-### 18. PWA — app instalável
+### ✅ 18. PWA — app instalável
 
 **Descrição:** O app já funciona offline (tudo é localStorage), falta apenas ser instalável na tela inicial do celular como um app nativo.
 
@@ -212,7 +212,7 @@ Melhorias incrementais ou opcionais que agregam valor sem urgência.
 
 ---
 
-### 19. Compartilhar lista como texto
+### ✅ 19. Compartilhar lista como texto
 
 **Descrição:** Gerar uma versão em texto da lista para enviar por WhatsApp ou outro mensageiro ("Mercado - 12/05\n✓ Arroz 2kg - R$ 8,00\n□ Feijão 1kg...").
 
@@ -220,7 +220,7 @@ Melhorias incrementais ou opcionais que agregam valor sem urgência.
 
 ---
 
-### 20. Ordenação manual de itens (drag & drop)
+### ✅ 20. Ordenação manual de itens (drag & drop)
 
 **Descrição:** Permitir reordenar itens dentro de uma lista arrastando, útil para organizar por seção do supermercado.
 

@@ -1,13 +1,54 @@
 'use client'
-import { formatCurrency } from '@/lib/utils'
+import { useState } from 'react'
+import { formatCurrency, cn } from '@/lib/utils'
 import { Card, CardContent } from '@/components/ui/card'
-import { History, TrendingUp, TrendingDown } from 'lucide-react'
+import { History, TrendingUp, TrendingDown, ChevronDown, CheckCircle2, XCircle } from 'lucide-react'
 import { useAppStore } from '@/store/use-app-store'
 import { useMounted } from '@/hooks/use-mounted'
+import { unitAbbr, normalizeUnit } from '@/lib/units'
+import type { ItemSummary } from '@/types'
+
+function ItemRow({ item }: { item: ItemSummary }) {
+  const unit = normalizeUnit(item.unit)
+  return (
+    <div className="flex items-center justify-between py-1.5 gap-3">
+      <div className="flex-1 min-w-0">
+        <span className={cn('text-sm', !item.isPurchased && 'text-[var(--muted-foreground)]')}>
+          {item.name}
+        </span>
+        <span className="text-xs text-[var(--muted-foreground)] ml-1.5">
+          {item.quantity}
+          {unit ? ` ${unitAbbr(unit)}` : 'x'}
+        </span>
+        {item.category && (
+          <span className="ml-1.5 text-xs text-[var(--muted-foreground)]">· {item.category}</span>
+        )}
+      </div>
+      <div className="text-right shrink-0 text-xs space-y-0.5">
+        {item.actualPrice != null && (
+          <p className="font-medium text-green-600">
+            {formatCurrency(Math.round(item.actualPrice * item.quantity))}
+          </p>
+        )}
+        {item.estimatedPrice != null && item.actualPrice == null && (
+          <p className="text-[var(--muted-foreground)]">
+            {formatCurrency(Math.round(item.estimatedPrice * item.quantity))}
+          </p>
+        )}
+        {item.estimatedPrice != null && item.actualPrice != null && (
+          <p className="text-[var(--muted-foreground)] line-through">
+            {formatCurrency(Math.round(item.estimatedPrice * item.quantity))}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
 
 export default function HistoricoPage() {
   const mounted = useMounted()
   const history = useAppStore((s) => s.history)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   if (!mounted) return null
 
@@ -30,62 +71,133 @@ export default function HistoricoPage() {
           {history.map((h) => {
             const diff = h.totalActual - h.totalEstimated
             const saved = diff < 0
+            const isExpanded = expandedId === h.id
+            const purchased = h.itemsSummary.filter((i) => i.isPurchased)
+            const notPurchased = h.itemsSummary.filter((i) => !i.isPurchased)
 
             return (
-              <Card key={h.id}>
+              <Card key={h.id} className="overflow-hidden">
                 <CardContent className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="font-medium">{h.listName}</h3>
-                      <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
-                        {new Date(h.completedAt).toLocaleDateString('pt-BR', {
-                          day: '2-digit',
-                          month: 'long',
-                          year: 'numeric',
-                        })}
-                        {' · '}
-                        {h.itemCount} itens
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-lg">{formatCurrency(h.totalActual)}</p>
-                      {h.totalEstimated > 0 && diff !== 0 && (
-                        <div
-                          className={`flex items-center gap-1 text-xs justify-end ${saved ? 'text-green-600' : 'text-red-500'}`}
-                        >
-                          {saved ? (
-                            <TrendingDown className="h-3 w-3" />
-                          ) : (
-                            <TrendingUp className="h-3 w-3" />
+                  {/* Header row — always visible */}
+                  <button
+                    className="w-full text-left"
+                    onClick={() => setExpandedId(isExpanded ? null : h.id)}
+                    aria-expanded={isExpanded}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-medium truncate">{h.listName}</h3>
+                        <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
+                          {new Date(h.completedAt).toLocaleDateString('pt-BR', {
+                            day: '2-digit',
+                            month: 'long',
+                            year: 'numeric',
+                          })}
+                          {' · '}
+                          {h.itemCount} itens
+                        </p>
+                      </div>
+                      <div className="flex items-start gap-2 shrink-0">
+                        <div className="text-right">
+                          <p className="font-bold text-lg leading-tight">
+                            {formatCurrency(h.totalActual)}
+                          </p>
+                          {h.totalEstimated > 0 && diff !== 0 && (
+                            <div
+                              className={cn(
+                                'flex items-center gap-1 text-xs justify-end',
+                                saved ? 'text-green-600' : 'text-red-500'
+                              )}
+                            >
+                              {saved ? (
+                                <TrendingDown className="h-3 w-3" />
+                              ) : (
+                                <TrendingUp className="h-3 w-3" />
+                              )}
+                              {saved ? 'Economizou' : 'Gastou a mais'}{' '}
+                              {formatCurrency(Math.abs(diff))}
+                            </div>
                           )}
-                          {saved ? 'Economizou' : 'Gastou a mais'} {formatCurrency(Math.abs(diff))}
+                        </div>
+                        <ChevronDown
+                          className={cn(
+                            'h-4 w-4 text-[var(--muted-foreground)] mt-1 transition-transform duration-200',
+                            isExpanded && 'rotate-180'
+                          )}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Preview pills — only when collapsed */}
+                    {!isExpanded && (
+                      <div className="mt-3 flex flex-wrap gap-1">
+                        {purchased.slice(0, 6).map((item, idx) => (
+                          <span
+                            key={idx}
+                            className="text-xs bg-[var(--secondary)] px-2 py-0.5 rounded-full"
+                          >
+                            {item.name}
+                          </span>
+                        ))}
+                        {purchased.length > 6 && (
+                          <span className="text-xs text-[var(--muted-foreground)]">
+                            +{purchased.length - 6} itens
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </button>
+
+                  {/* Expanded detail */}
+                  {isExpanded && (
+                    <div className="mt-4 space-y-4">
+                      {purchased.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-1.5 mb-2">
+                            <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+                            <span className="text-xs font-semibold text-green-600">
+                              Comprados ({purchased.length})
+                            </span>
+                          </div>
+                          <div className="divide-y divide-[var(--border)]">
+                            {purchased.map((item, idx) => (
+                              <ItemRow key={idx} item={item} />
+                            ))}
+                          </div>
                         </div>
                       )}
-                    </div>
-                  </div>
 
-                  <div className="mt-3 flex flex-wrap gap-1">
-                    {(() => {
-                      const purchased = h.itemsSummary.filter((i) => i.isPurchased)
-                      return (
-                        <>
-                          {purchased.slice(0, 6).map((item, idx) => (
-                            <span
-                              key={idx}
-                              className="text-xs bg-[var(--secondary)] px-2 py-0.5 rounded-full"
-                            >
-                              {item.name}
+                      {notPurchased.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-1.5 mb-2">
+                            <XCircle className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />
+                            <span className="text-xs font-semibold text-[var(--muted-foreground)]">
+                              Não comprados ({notPurchased.length})
                             </span>
-                          ))}
-                          {purchased.length > 6 && (
-                            <span className="text-xs text-[var(--muted-foreground)]">
-                              +{purchased.length - 6} itens
-                            </span>
-                          )}
-                        </>
-                      )
-                    })()}
-                  </div>
+                          </div>
+                          <div className="divide-y divide-[var(--border)]">
+                            {notPurchased.map((item, idx) => (
+                              <ItemRow key={idx} item={item} />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Totals footer */}
+                      <div className="pt-3 border-t border-[var(--border)] grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <p className="text-xs text-[var(--muted-foreground)]">Estimado</p>
+                          <p className="font-semibold">{formatCurrency(h.totalEstimated)}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-[var(--muted-foreground)]">Real</p>
+                          <p className="font-semibold text-green-600">
+                            {formatCurrency(h.totalActual)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )
