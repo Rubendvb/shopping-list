@@ -106,7 +106,7 @@ export default function HistoricoPage() {
                 <CardContent className="p-4">
                   {/* Header row — always visible */}
                   <button
-                    className="w-full text-left"
+                    className="w-full text-left cursor-pointer"
                     onClick={() => setExpandedId(isExpanded ? null : h.id)}
                     aria-expanded={isExpanded}
                   >

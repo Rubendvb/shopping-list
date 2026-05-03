@@ -270,7 +270,7 @@ export default function EstatisticasPage() {
                     <button
                       key={item.name}
                       onClick={() => openSuggestionDialog(item)}
-                      className="px-3 py-1.5 bg-[var(--secondary)] rounded-full text-sm flex items-center gap-1.5 hover:bg-[var(--accent)] transition-colors group"
+                      className="px-3 py-1.5 bg-[var(--secondary)] rounded-full text-sm flex items-center gap-1.5 hover:bg-[var(--accent)] transition-colors cursor-pointer group"
                       aria-label={`Adicionar ${item.name} a uma lista`}
                     >
                       🛒 {item.name}

@@ -232,7 +232,7 @@ export function ListsClient() {
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors cursor-pointer ${
               filter === f
                 ? 'bg-[var(--primary)] text-[var(--primary-foreground)]'
                 : 'bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-80'
@@ -284,14 +284,14 @@ export function ListsClient() {
                       <button
                         onClick={(e) => handleDuplicateList(list.id, e)}
                         aria-label="Duplicar lista"
-                        className="flex items-center justify-center h-10 w-10 md:h-auto md:w-auto md:p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 rounded hover:bg-[var(--secondary)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-all shrink-0"
+                        className="flex items-center justify-center h-10 w-10 md:h-auto md:w-auto md:p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 rounded hover:bg-[var(--secondary)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-all shrink-0 cursor-pointer"
                       >
                         <Copy className="h-4 w-4" />
                       </button>
                       <button
                         onClick={(e) => handleDeleteList(list.id, e)}
                         aria-label="Excluir lista"
-                        className="flex items-center justify-center h-10 w-10 md:h-auto md:w-auto md:p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 rounded hover:bg-red-100 dark:hover:bg-red-950 text-red-500 transition-all ml-1 shrink-0"
+                        className="flex items-center justify-center h-10 w-10 md:h-auto md:w-auto md:p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 rounded hover:bg-red-100 dark:hover:bg-red-950 text-red-500 transition-all ml-1 shrink-0 cursor-pointer"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>

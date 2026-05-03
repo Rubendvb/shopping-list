@@ -75,7 +75,7 @@ export const SortableItemCard = React.memo(function SortableItemCard({
 
           <button
             onClick={() => onToggle(item.id, !item.isPurchased)}
-            className="shrink-0"
+            className="shrink-0 cursor-pointer disabled:cursor-default"
             disabled={isCompleted}
           >
             {item.isPurchased ? (
@@ -152,14 +152,14 @@ export const SortableItemCard = React.memo(function SortableItemCard({
               <button
                 onClick={() => onEdit(item)}
                 aria-label="Editar item"
-                className="flex items-center justify-center h-10 w-10 md:h-auto md:w-auto md:p-1 rounded hover:bg-[var(--secondary)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+                className="flex items-center justify-center h-10 w-10 md:h-auto md:w-auto md:p-1 rounded hover:bg-[var(--secondary)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors cursor-pointer"
               >
                 <Pencil className="h-4 w-4" />
               </button>
               <button
                 onClick={() => onDelete(item.id)}
                 aria-label="Excluir item"
-                className="flex items-center justify-center h-10 w-10 md:h-auto md:w-auto md:p-1 rounded hover:bg-red-100 dark:hover:bg-red-950 text-red-400 hover:text-red-600 transition-colors"
+                className="flex items-center justify-center h-10 w-10 md:h-auto md:w-auto md:p-1 rounded hover:bg-red-100 dark:hover:bg-red-950 text-red-400 hover:text-red-600 transition-colors cursor-pointer"
               >
                 <Trash2 className="h-4 w-4" />
               </button>

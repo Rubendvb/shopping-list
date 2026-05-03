@@ -28,7 +28,7 @@ export function Sidebar() {
   return (
     <>
       <button
-        className="fixed top-4 left-4 z-50 md:hidden p-2 rounded-md bg-[var(--card)] border border-[var(--border)] shadow"
+        className="fixed top-4 left-4 z-50 md:hidden p-2 rounded-md bg-[var(--card)] border border-[var(--border)] shadow cursor-pointer"
         onClick={() => setOpen(!open)}
       >
         {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}

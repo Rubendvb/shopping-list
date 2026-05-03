@@ -126,7 +126,7 @@ export function CategoriesClient() {
                     <button
                       key={e}
                       onClick={() => setIcon(e)}
-                      className={`text-xl p-1.5 rounded border-2 transition-colors ${
+                      className={`text-xl p-1.5 rounded border-2 transition-colors cursor-pointer ${
                         icon === e ? 'border-[var(--primary)]' : 'border-[var(--border)]'
                       }`}
                     >
@@ -215,7 +215,7 @@ export function CategoriesClient() {
                   <button
                     onClick={() => handleDeleteCategory(cat.id)}
                     aria-label="Excluir categoria"
-                    className="flex items-center justify-center h-10 w-10 md:h-auto md:w-auto md:p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 rounded hover:bg-red-100 dark:hover:bg-red-950 text-red-400 hover:text-red-600 transition-all shrink-0"
+                    className="flex items-center justify-center h-10 w-10 md:h-auto md:w-auto md:p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 rounded hover:bg-red-100 dark:hover:bg-red-950 text-red-400 hover:text-red-600 transition-all shrink-0 cursor-pointer"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
