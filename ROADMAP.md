@@ -242,7 +242,7 @@ Melhorias internas sem impacto visual direto, mas que facilitam manutenção e r
 
 ---
 
-### T1. Fatiamento de `list-detail-client.tsx`
+### ✅ T1. Fatiamento de `list-detail-client.tsx`
 
 O arquivo tem 718 linhas com 4 responsabilidades distintas. Extrair:
 - `<BudgetCard list={list} items={listItems} />`
@@ -252,7 +252,7 @@ O arquivo tem 718 linhas com 4 responsabilidades distintas. Extrair:
 
 ---
 
-### T2. Funções utilitárias para cálculos duplicados
+### ✅ T2. Funções utilitárias para cálculos duplicados
 
 O cálculo `items.reduce((s, i) => s + (i.estimatedPrice ?? 0) * i.quantity, 0)` aparece em 3 arquivos diferentes. Centralizar em `src/lib/utils.ts`:
 ```ts
@@ -262,7 +262,7 @@ export function calcActual(items: Pick<Item, 'actualPrice' | 'estimatedPrice' | 
 
 ---
 
-### T3. Hook `useStatistics()`
+### ✅ T3. Hook `useStatistics()`
 
 Toda a lógica de computação de `estatisticas/page.tsx` (loops, maps, agregações) deveria estar em `src/hooks/use-statistics.ts`, deixando o componente responsável apenas por renderizar os dados prontos.
 

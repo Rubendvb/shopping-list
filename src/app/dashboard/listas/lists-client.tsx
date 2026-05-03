@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, calcEstimated } from '@/lib/utils'
 import { CurrencyInput } from '@/components/ui/currency-input'
 import { useAppStore } from '@/store/use-app-store'
 import { useMounted } from '@/hooks/use-mounted'
@@ -241,10 +241,7 @@ export function ListsClient() {
             const listItems = items.filter((i) => i.listId === list.id)
             const purchased = listItems.filter((i) => i.isPurchased).length
             const total = listItems.length
-            const estimated = listItems.reduce(
-              (s, i) => s + (i.estimatedPrice ?? 0) * i.quantity,
-              0
-            )
+            const estimated = calcEstimated(listItems)
             const progress = total > 0 ? Math.round((purchased / total) * 100) : 0
 
             return (

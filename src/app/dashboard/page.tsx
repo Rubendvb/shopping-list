@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useAppStore } from '@/store/use-app-store'
 import { useMounted } from '@/hooks/use-mounted'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, calcEstimated } from '@/lib/utils'
 
 export default function DashboardPage() {
   const mounted = useMounted()
@@ -112,10 +112,7 @@ export default function DashboardPage() {
               const listItems = items.filter((i) => i.listId === list.id)
               const purchased = listItems.filter((i) => i.isPurchased).length
               const total = listItems.length
-              const estimated = listItems.reduce(
-                (s, i) => s + (i.estimatedPrice ?? 0) * i.quantity,
-                0
-              )
+              const estimated = calcEstimated(listItems)
               const progress = total > 0 ? Math.round((purchased / total) * 100) : 0
 
               return (
