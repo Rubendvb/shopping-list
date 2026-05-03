@@ -1,8 +1,9 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { DEFAULT_CATEGORIES } from '@/lib/categories'
+import { DEFAULT_STORES } from '@/lib/stores'
 import { calcEstimated, calcActual } from '@/lib/utils'
-import type { List, Item, Category, PurchaseHistory, Priority, Unit } from '@/types'
+import type { List, Item, Category, Store, PriceRecord, PurchaseHistory, Priority, Unit } from '@/types'
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -21,6 +22,8 @@ interface AppState {
   items: Item[]
   categories: Category[]
   history: PurchaseHistory[]
+  stores: Store[]
+  priceHistory: PriceRecord[]
 }
 
 interface AddListInput {
@@ -38,6 +41,7 @@ interface AddItemInput {
   /** reais — stored as cents */
   estimatedPrice?: number
   categoryId?: string
+  storeId?: string
   priority?: Priority
   notes?: string
 }
@@ -53,20 +57,31 @@ interface AppActions {
   completeList: (id: string) => void
   duplicateList: (id: string) => string
 
-  // Items
-  addItem: (data: AddItemInput) => void
-  updateItem: (id: string, data: Partial<Omit<Item, 'id' | 'listId' | 'createdAt'>>) => void
+  // Items — return false when a duplicate name+store exists in the same list
+  addItem: (data: AddItemInput) => boolean
+  updateItem: (id: string, data: Partial<Omit<Item, 'id' | 'listId' | 'createdAt'>>) => boolean
   deleteItem: (id: string) => void
 
   // Categories
   addCategory: (data: { name: string; icon?: string; color?: string }) => void
   deleteCategory: (id: string) => void
 
+  // Stores
+  addStore: (data: { name: string; icon?: string; color?: string }) => void
+  deleteStore: (id: string) => void
+
   // Items order
   reorderItems: (listId: string, orderedIds: string[]) => void
 
   // Data management
-  importData: (data: Pick<AppState, 'lists' | 'items' | 'categories' | 'history'>) => void
+  importData: (data: {
+    lists: List[]
+    items: Item[]
+    categories: Category[]
+    history: PurchaseHistory[]
+    stores?: Store[]
+    priceHistory?: PriceRecord[]
+  }) => void
 }
 
 // ─── store ───────────────────────────────────────────────────────────────────
@@ -78,6 +93,8 @@ export const useAppStore = create<AppState & AppActions>()(
       items: [],
       categories: DEFAULT_CATEGORIES,
       history: [],
+      stores: DEFAULT_STORES,
+      priceHistory: [],
 
       // ── Lists ────────────────────────────────────────────────────────────
 
@@ -183,6 +200,7 @@ export const useAppStore = create<AppState & AppActions>()(
             actualPrice: i.actualPrice,
             isPurchased: i.isPurchased,
             category: categories.find((c) => c.id === i.categoryId)?.name,
+            storeId: i.storeId,
           })),
           completedAt: now(),
         }
@@ -204,21 +222,30 @@ export const useAppStore = create<AppState & AppActions>()(
         unit,
         estimatedPrice,
         categoryId,
+        storeId,
         priority = 'MEDIUM',
         notes,
       }) => {
+        const nameKey = name.toLowerCase().trim()
+        const isDuplicate = get().items.some(
+          (i) => i.listId === listId && i.name.toLowerCase().trim() === nameKey
+        )
+        if (isDuplicate) return false
+
         const existing = get().items.filter((i) => i.listId === listId)
         const maxOrder = existing.reduce((m, i) => Math.max(m, i.order ?? -1), -1)
         const t = now()
+        const priceCents = estimatedPrice !== undefined ? Math.round(estimatedPrice * 100) : undefined
+
         const item: Item = {
           id: genId(),
           listId,
           name,
           quantity,
           unit,
-          estimatedPrice:
-            estimatedPrice !== undefined ? Math.round(estimatedPrice * 100) : undefined,
+          estimatedPrice: priceCents,
           categoryId,
+          storeId,
           priority,
           isPurchased: false,
           order: maxOrder + 1,
@@ -226,33 +253,106 @@ export const useAppStore = create<AppState & AppActions>()(
           createdAt: t,
           updatedAt: t,
         }
-        set((s) => ({ items: [...s.items, item] }))
+
+        const priceRecord: PriceRecord | null =
+          storeId && priceCents !== undefined
+            ? {
+                id: genId(),
+                productName: name,
+                productKey: name.toLowerCase().trim(),
+                storeId,
+                price: priceCents,
+                recordedAt: t,
+              }
+            : null
+
+        set((s) => ({
+          items: [...s.items, item],
+          priceHistory: priceRecord ? [priceRecord, ...s.priceHistory] : s.priceHistory,
+        }))
+        return true
       },
 
       updateItem: (id, data) => {
-        set((s) => ({
-          items: s.items.map((i) =>
-            i.id !== id
-              ? i
-              : {
-                  ...i,
-                  ...data,
-                  estimatedPrice:
-                    data.estimatedPrice !== undefined
-                      ? data.estimatedPrice === null
-                        ? undefined
-                        : Math.round((data.estimatedPrice as number) * 100)
-                      : i.estimatedPrice,
-                  actualPrice:
-                    data.actualPrice !== undefined
-                      ? data.actualPrice === null
-                        ? undefined
-                        : Math.round((data.actualPrice as number) * 100)
-                      : i.actualPrice,
-                  updatedAt: now(),
-                }
-          ),
-        }))
+        const current = get().items.find((i) => i.id === id)
+        if (!current) return false
+
+        const newEstimatedPrice =
+          data.estimatedPrice !== undefined
+            ? data.estimatedPrice === null
+              ? undefined
+              : Math.round((data.estimatedPrice as number) * 100)
+            : current.estimatedPrice
+
+        const newActualPrice =
+          data.actualPrice !== undefined
+            ? data.actualPrice === null
+              ? undefined
+              : Math.round((data.actualPrice as number) * 100)
+            : current.actualPrice
+
+        const newStoreId = 'storeId' in data ? data.storeId : current.storeId
+        const newName = data.name !== undefined ? data.name.trim() : current.name
+
+        const oldProductKey = current.name.toLowerCase().trim()
+        const newProductKey = newName.toLowerCase().trim()
+        const nameChanged = oldProductKey !== newProductKey
+
+        // Block duplicate: same name in the same list (excluding self)
+        if (data.name !== undefined) {
+          const isDuplicate = get().items.some(
+            (i) =>
+              i.id !== id &&
+              i.listId === current.listId &&
+              i.name.toLowerCase().trim() === newProductKey
+          )
+          if (isDuplicate) return false
+        }
+
+        const shouldRecord =
+          newStoreId != null &&
+          newEstimatedPrice !== undefined &&
+          (data.estimatedPrice !== undefined || 'storeId' in data)
+
+        const priceRecord: PriceRecord | null = shouldRecord
+          ? {
+              id: genId(),
+              productName: newName,
+              productKey: newProductKey,
+              storeId: newStoreId!,
+              price: newEstimatedPrice!,
+              recordedAt: now(),
+            }
+          : null
+
+        set((s) => {
+          // When name is corrected, rename all matching history records atomically
+          let newPriceHistory = nameChanged
+            ? s.priceHistory.map((r) =>
+                r.productKey === oldProductKey
+                  ? { ...r, productName: newName, productKey: newProductKey }
+                  : r
+              )
+            : s.priceHistory
+
+          if (priceRecord) newPriceHistory = [priceRecord, ...newPriceHistory]
+
+          return {
+            items: s.items.map((i) =>
+              i.id !== id
+                ? i
+                : {
+                    ...i,
+                    ...data,
+                    estimatedPrice: newEstimatedPrice,
+                    actualPrice: newActualPrice,
+                    updatedAt: now(),
+                  }
+            ),
+            priceHistory: newPriceHistory,
+          }
+        })
+        return true
       },
 
       deleteItem: (id) => {
@@ -286,28 +386,47 @@ export const useAppStore = create<AppState & AppActions>()(
         }))
       },
 
-      importData: ({ lists, items, categories, history }) => {
-        set({ lists, items, categories, history })
+      // ── Stores ───────────────────────────────────────────────────────────
+
+      addStore: ({ name, icon = '🏪', color = '#6366f1' }) => {
+        set((s) => ({
+          stores: [...s.stores, { id: genId(), name, icon, color, isDefault: false }],
+        }))
+      },
+
+      deleteStore: (id) => {
+        set((s) => ({
+          stores: s.stores.filter((st) => st.id !== id || st.isDefault),
+          items: s.items.map((i) => (i.storeId === id ? { ...i, storeId: undefined } : i)),
+        }))
+      },
+
+      importData: ({ lists, items, categories, history, stores, priceHistory }) => {
+        set({
+          lists,
+          items,
+          categories,
+          history,
+          stores: stores ?? DEFAULT_STORES,
+          priceHistory: priceHistory ?? [],
+        })
       },
     }),
     {
       name: 'listafacil-storage',
-      version: 2,
+      version: 4,
       migrate: (persisted, fromVersion) => {
         const state = persisted as AppState & AppActions
         if (fromVersion < 1) {
-          // Rename cat-mercado "Mercado" → "Mercearia" in existing data
           state.categories = state.categories.map((c) =>
             c.id === 'cat-mercado' ? { ...c, name: 'Mercearia', icon: '🥫' } : c
           )
-          // Add new default categories that didn't exist before v1
           const existingIds = new Set(state.categories.map((c) => c.id))
           DEFAULT_CATEGORIES.forEach((dc) => {
             if (!existingIds.has(dc.id)) state.categories.push(dc)
           })
         }
         if (fromVersion < 2) {
-          // Assign order to existing items that don't have it (by list, preserving array position)
           const counters: Record<string, number> = {}
           state.items = state.items.map((item) => {
             if (item.order !== undefined) return item
@@ -315,6 +434,27 @@ export const useAppStore = create<AppState & AppActions>()(
             const order = counters[item.listId]++
             return { ...item, order }
           })
+        }
+        if (fromVersion < 3) {
+          if (!state.stores || state.stores.length === 0) {
+            state.stores = DEFAULT_STORES
+          } else {
+            const existingIds = new Set((state.stores as Store[]).map((s) => s.id))
+            DEFAULT_STORES.forEach((ds) => {
+              if (!existingIds.has(ds.id)) state.stores.push(ds)
+            })
+          }
+          if (!state.priceHistory) state.priceHistory = []
+        }
+        if (fromVersion < 4) {
+          // Insert any default stores added after v3
+          if (!state.stores) state.stores = DEFAULT_STORES
+          else {
+            const existingIds = new Set((state.stores as Store[]).map((s) => s.id))
+            DEFAULT_STORES.forEach((ds) => {
+              if (!existingIds.has(ds.id)) state.stores.push(ds)
+            })
+          }
         }
         return state
       },

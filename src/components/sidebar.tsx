@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BarChart3, ListChecks, ShoppingCart, Tag, History, Settings, Menu, X } from 'lucide-react'
+import { BarChart3, ListChecks, ShoppingCart, Tag, History, Settings, Menu, X, Building2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Badge } from '@/components/ui/badge'
@@ -15,6 +15,7 @@ const navItems = [
   { href: '/dashboard/estatisticas', label: 'Estatísticas', icon: BarChart3 },
   { href: '/dashboard/historico', label: 'Histórico', icon: History },
   { href: '/dashboard/categorias', label: 'Categorias', icon: Tag },
+  { href: '/dashboard/lojas', label: 'Lojas', icon: Building2 },
   { href: '/dashboard/configuracoes', label: 'Configurações', icon: Settings },
 ]
 

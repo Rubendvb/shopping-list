@@ -10,6 +10,25 @@ export interface Category {
   isDefault: boolean
 }
 
+export interface Store {
+  id: string
+  name: string
+  color?: string
+  icon?: string
+  isDefault: boolean
+}
+
+export interface PriceRecord {
+  id: string
+  productName: string
+  /** normalized (toLowerCase().trim()) for lookups */
+  productKey: string
+  storeId: string
+  /** cents */
+  price: number
+  recordedAt: string
+}
+
 export interface List {
   id: string
   name: string
@@ -32,6 +51,7 @@ export interface Item {
   /** cents */
   actualPrice?: number
   categoryId?: string
+  storeId?: string
   priority: Priority
   isPurchased: boolean
   /** manual sort position within the list */
@@ -49,6 +69,7 @@ export interface ItemSummary {
   actualPrice?: number
   isPurchased: boolean
   category?: string
+  storeId?: string
 }
 
 export interface PurchaseHistory {

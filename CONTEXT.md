@@ -7,7 +7,9 @@ Aplicativo web de gerenciamento de listas de compras. Single-user, sem autentica
 **Funcionalidades implementadas:**
 
 - CRUD de listas de compras com orçamento
-- CRUD de itens por lista (nome, quantidade, unidade, preço estimado, preço real, categoria, prioridade, notas)
+- CRUD de itens por lista (nome, quantidade, unidade, preço estimado, preço real, categoria, loja, prioridade, notas)
+  - **Bloqueio de duplicados**: Não permite itens com o mesmo nome na mesma lista
+  - **Comparador de preços integrado**: Exibe badges de "Melhor preço" ou informa onde o produto é mais barato (incluindo empates)
 - Edição de itens via dialog com todos os campos (incluindo preço real e notas)
 - Marcar itens como comprados
 - Filtro por categoria, status (comprado/pendente) e busca por nome
@@ -16,6 +18,8 @@ Aplicativo web de gerenciamento de listas de compras. Single-user, sem autentica
 - Concluir lista → salva snapshot no histórico (com validação para listas sem itens comprados)
 - Histórico de compras com cards expansíveis e detalhamento completo
 - Estatísticas: gastos por categoria, gráfico mensal, itens mais comprados, sugestões inteligentes com ação de adicionar
+- Gerenciamento de Lojas: cadastro de lojas padrão e personalizadas
+- Comparador de Preços: histórico de preços registrados por produto e loja
 - 12 categorias padrão baseadas em seções de supermercado + categorias personalizadas
 - Dark mode (next-themes)
 - Layout responsivo com sidebar (mobile: hamburger menu)
@@ -81,6 +85,9 @@ shopping-list/
     │       ├── categorias/
     │       │   ├── page.tsx        # Wrapper → <CategoriesClient>
     │       │   └── categories-client.tsx
+    │       ├── lojas/
+    │       │   ├── page.tsx        # Wrapper → <StoresClient>
+    │       │   └── stores-client.tsx
     │       └── configuracoes/
     │           └── page.tsx        # Exportar/importar JSON
     ├── components/
@@ -122,7 +129,7 @@ shopping-list/
 
 ## Store Zustand (`use-app-store.ts`)
 
-Chave localStorage: `"listafacil-storage"` · Versão atual: `2`
+Chave localStorage: `"listafacil-storage"` · Versão atual: `4`
 
 **Estado:**
 
@@ -131,6 +138,8 @@ lists: List[]
 items: Item[]
 categories: Category[]
 history: PurchaseHistory[]
+stores: Store[]
+priceHistory: PriceRecord[]
 ```
 
 **Actions:**
@@ -142,18 +151,22 @@ history: PurchaseHistory[]
 | `deleteList(id)`                              | Remove lista + itens associados + histórico                       |
 | `completeList(id)`                            | Cria `PurchaseHistory` snapshot e marca `isCompleted: true`       |
 | `duplicateList(id)`                           | Copia lista + itens (`isPurchased: false`), retorna novo `id`     |
-| `addItem({ listId, name, ... })`              | Adiciona item; auto-atribui `order = max(existentes) + 1`         |
-| `updateItem(id, data)`                        | Atualiza item (inclui `isPurchased`, `actualPrice`)               |
+| `addItem({ listId, name, ... })`              | Adiciona item; retorna `false` se já existir item com o mesmo nome na lista |
+| `updateItem(id, data)`                        | Atualiza item; atualiza globalmente o nome no `priceHistory`; retorna `false` se duplicado |
 | `deleteItem(id)`                              | Remove item                                                       |
 | `reorderItems(listId, orderedIds)`            | Atualiza `order` de todos os itens conforme novo array de IDs     |
 | `addCategory({ name, icon?, color? })`        | Cria categoria personalizada                                      |
 | `deleteCategory(id)`                          | Remove categoria + limpa `categoryId` nos itens que a referenciavam |
-| `importData({ lists, items, categories, history })` | Substitui todo o estado (fluxo de restore)                  |
+| `addStore({ name, icon?, color? })`           | Cria loja personalizada                                           |
+| `deleteStore(id)`                             | Remove loja + limpa `storeId` nos itens que a referenciavam       |
+| `importData({ ... })`                         | Substitui todo o estado (fluxo de restore)                  |
 
 **Migração:**
 
 - v0 → v1: renomeia "Mercado" → "Mercearia" (mantendo `cat-mercado`), insere `cat-congelados` e `cat-utilidades`
 - v1 → v2: atribui `order` sequencial a itens sem o campo (por lista, preservando posição no array)
+- v2 → v3: inicializa `stores` com lojas padrão e cria array vazio para `priceHistory`
+- v3 → v4: insere qualquer nova loja padrão que possa estar faltando no estado existente
 
 Para mudanças futuras: incrementar `version` e adicionar bloco `fromVersion < N` em `migrate`.
 
@@ -183,6 +196,7 @@ interface Item {
   estimatedPrice?: number  // centavos
   actualPrice?: number     // centavos
   categoryId?: string
+  storeId?: string
   priority: Priority
   isPurchased: boolean
   order?: number        // posição na ordenação manual
@@ -198,7 +212,7 @@ interface PurchaseHistory {
   totalEstimated: number  // centavos
   totalActual: number     // centavos
   itemCount: number
-  itemsSummary: ItemSummary[]
+  itemsSummary: (ItemSummary & { storeId?: string })[]
   completedAt: string
 }
 ```

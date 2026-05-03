@@ -1,6 +1,6 @@
 'use client'
-import { useState } from 'react'
-import { Plus } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { Plus, TrendingDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -17,15 +17,18 @@ import {
 import { UNITS } from '@/lib/units'
 import { useAppStore } from '@/store/use-app-store'
 import { toast } from '@/hooks/use-toast'
-import type { Category, Priority, Unit } from '@/types'
+import { formatCurrency } from '@/lib/utils'
+import type { Category, Store, Priority, Unit } from '@/types'
 
 interface AddItemFormProps {
   listId: string
   categories: Category[]
+  stores: Store[]
 }
 
-export function AddItemForm({ listId, categories }: AddItemFormProps) {
+export function AddItemForm({ listId, categories, stores }: AddItemFormProps) {
   const addItem = useAppStore((s) => s.addItem)
+  const priceHistory = useAppStore((s) => s.priceHistory)
 
   const [showAdd, setShowAdd] = useState(false)
   const [name, setName] = useState('')
@@ -33,7 +36,40 @@ export function AddItemForm({ listId, categories }: AddItemFormProps) {
   const [unit, setUnit] = useState<Unit | ''>('')
   const [price, setPrice] = useState<number | undefined>(undefined)
   const [category, setCategory] = useState('')
+  const [storeId, setStoreId] = useState('')
   const [priority, setPriority] = useState<Priority>('MEDIUM')
+
+  const betterPriceInfo = useMemo(() => {
+    if (!price || !name.trim()) return null
+    const productKey = name.toLowerCase().trim()
+    const relevant = priceHistory.filter((r) => r.productKey === productKey)
+    if (!relevant.length) return null
+
+    const byStore = new Map<string, number>()
+    for (const r of [...relevant].sort((a, b) => b.recordedAt.localeCompare(a.recordedAt))) {
+      if (!byStore.has(r.storeId)) byStore.set(r.storeId, r.price)
+    }
+
+    let bestPrice = price
+    for (const [sid, p] of byStore) {
+      if (sid === storeId) continue
+      if (p < bestPrice) bestPrice = p
+    }
+
+    if (bestPrice >= price) return null
+
+    const storeNames: string[] = []
+    for (const [sid, p] of byStore) {
+      if (sid === storeId) continue
+      if (p === bestPrice) {
+        const store = stores.find((s) => s.id === sid)
+        if (store) storeNames.push(store.name)
+      }
+    }
+
+    if (!storeNames.length) return null
+    return { storeNames, price: bestPrice }
+  }, [name, price, storeId, priceHistory, stores])
 
   function reset() {
     setName('')
@@ -41,24 +77,42 @@ export function AddItemForm({ listId, categories }: AddItemFormProps) {
     setUnit('')
     setPrice(undefined)
     setCategory('')
+    setStoreId('')
     setPriority('MEDIUM')
     setShowAdd(false)
   }
 
   function handleAdd() {
     if (!name.trim()) return
-    addItem({
+    const ok = addItem({
       listId,
       name: name.trim(),
       quantity: parseFloat(qty) || 1,
       unit: unit || undefined,
       estimatedPrice: price !== undefined ? price / 100 : undefined,
       categoryId: category || undefined,
+      storeId: storeId || undefined,
       priority,
     })
+    if (!ok) {
+      toast('Item já existe na lista', 'destructive')
+      return
+    }
     reset()
     toast('Item adicionado', 'success')
   }
+
+  const betterPriceAlert = betterPriceInfo && (
+    <div className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 px-2.5 py-2 rounded-md">
+      <TrendingDown className="h-3.5 w-3.5 shrink-0" />
+      <span>
+        Preço mais baixo: <strong>{formatCurrency(betterPriceInfo.price)}</strong>{' '}
+        {betterPriceInfo.storeNames.length === 1
+          ? `no ${betterPriceInfo.storeNames[0]}`
+          : betterPriceInfo.storeNames.join(', ')}
+      </span>
+    </div>
+  )
 
   return (
     <>
@@ -116,6 +170,21 @@ export function AddItemForm({ listId, categories }: AddItemFormProps) {
               <CurrencyInput value={price} onChange={setPrice} />
             </div>
             <div className="space-y-1">
+              <Label className="text-xs">Loja</Label>
+              <Select value={storeId} onValueChange={setStoreId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar" />
+                </SelectTrigger>
+                <SelectContent>
+                  {stores.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.icon} {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
               <Label className="text-xs">Categoria</Label>
               <Select value={category} onValueChange={setCategory}>
                 <SelectTrigger>
@@ -150,6 +219,7 @@ export function AddItemForm({ listId, categories }: AddItemFormProps) {
               </Button>
             </div>
           </div>
+          {betterPriceAlert && <div className="mt-3">{betterPriceAlert}</div>}
         </CardContent>
       </Card>
 
@@ -198,6 +268,22 @@ export function AddItemForm({ listId, categories }: AddItemFormProps) {
             <div className="space-y-1">
               <Label>Preço estimado (R$)</Label>
               <CurrencyInput value={price} onChange={setPrice} />
+            </div>
+            {betterPriceAlert}
+            <div className="space-y-1">
+              <Label>Loja</Label>
+              <Select value={storeId} onValueChange={setStoreId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar" />
+                </SelectTrigger>
+                <SelectContent>
+                  {stores.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.icon} {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1">
               <Label>Categoria</Label>
