@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { CurrencyInput } from '@/components/ui/currency-input'
+import { ItemNameInput } from '@/components/ui/item-name-input'
 import {
   Select,
   SelectContent,
@@ -17,12 +18,14 @@ import {
 import { UNITS } from '@/lib/units'
 import { useAppStore } from '@/store/use-app-store'
 import { useShallow } from 'zustand/react/shallow'
+import { useItemSuggestions } from '@/hooks/use-item-suggestions'
 import { toast } from '@/hooks/use-toast'
 import { getPriceAlert } from '@/lib/price-alert'
 import { PriceAlertBanner } from './price-alert-banner'
 import { SuggestionHint } from './suggestion-hint'
 import type { SuggestionData } from './suggestion-hint'
 import type { Category, Store, Priority, Unit } from '@/types'
+import type { ItemSuggestion } from '@/hooks/use-item-suggestions'
 
 interface AddItemFormProps {
   listId: string
@@ -63,6 +66,16 @@ export function AddItemForm({ listId, categories, stores }: AddItemFormProps) {
     () => (price ? getPriceAlert(name, price, storeId || undefined, productPrices, stores) : null),
     [name, price, storeId, productPrices, stores]
   )
+
+  const autocompleteSuggestions = useItemSuggestions(name)
+
+  function handleSelectSuggestion(s: ItemSuggestion) {
+    setName(s.displayName)
+    if (s.categoryId && !category) setCategory(s.categoryId)
+    if (s.unit && !unit) setUnit(s.unit)
+    if (s.storeId && !storeId) setStoreId(s.storeId)
+    if (s.price !== undefined && price === undefined) setPrice(s.price)
+  }
 
   function applySuggestion() {
     if (!suggestion) return
@@ -120,11 +133,13 @@ export function AddItemForm({ listId, categories, stores }: AddItemFormProps) {
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <div className="col-span-2 md:col-span-1 space-y-1">
               <Label className="text-xs">Nome *</Label>
-              <Input
+              <ItemNameInput
                 placeholder="Ex: Arroz"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+                onChange={setName}
+                onSelect={handleSelectSuggestion}
+                suggestions={autocompleteSuggestions}
+                onEnter={handleAdd}
               />
             </div>
             <div className="space-y-1">
@@ -224,10 +239,12 @@ export function AddItemForm({ listId, categories, stores }: AddItemFormProps) {
           <div className="space-y-3 mt-2">
             <div className="space-y-1">
               <Label>Nome *</Label>
-              <Input
+              <ItemNameInput
                 placeholder="Ex: Arroz"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={setName}
+                onSelect={handleSelectSuggestion}
+                suggestions={autocompleteSuggestions}
               />
             </div>
             {suggestion && !price && (

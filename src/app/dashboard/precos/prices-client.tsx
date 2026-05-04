@@ -67,6 +67,11 @@ export function PricesClient() {
     storeId: string
   } | null>(null)
 
+  const [newProductOpen, setNewProductOpen] = useState(false)
+  const [newProductName, setNewProductName] = useState('')
+  const [newProductStoreId, setNewProductStoreId] = useState('')
+  const [newProductPrice, setNewProductPrice] = useState<number | undefined>(undefined)
+
   const groups = useMemo((): PriceGroup[] => {
     const map = new Map<
       string,
@@ -144,6 +149,25 @@ export function PricesClient() {
     setRemoveTarget(null)
   }
 
+  function openNewProduct() {
+    setNewProductName('')
+    setNewProductStoreId('')
+    setNewProductPrice(undefined)
+    setNewProductOpen(true)
+  }
+
+  function saveNewProduct() {
+    const name = newProductName.trim()
+    if (!name || !newProductStoreId || !newProductPrice || newProductPrice <= 0) return
+    const ok = addProductPrice(name, newProductStoreId, newProductPrice)
+    if (!ok) {
+      toast('Já existe um preço para esse produto nessa loja', 'destructive')
+      return
+    }
+    toast('Produto cadastrado', 'success')
+    setNewProductOpen(false)
+  }
+
   if (!mounted) {
     return (
       <div className="space-y-6">
@@ -167,11 +191,18 @@ export function PricesClient() {
 
   return (
     <div className="space-y-6 pb-6">
-      <div>
-        <h1 className="text-2xl font-bold">Comparador de Preços</h1>
-        <p className="text-sm text-[var(--muted-foreground)] mt-1">
-          {groups.length} produto{groups.length !== 1 ? 's' : ''} com preço registrado
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Comparador de Preços</h1>
+          <p className="text-sm text-[var(--muted-foreground)] mt-1">
+            {groups.length} produto{groups.length !== 1 ? 's' : ''} com preço registrado
+          </p>
+        </div>
+        <Button onClick={openNewProduct} className="shrink-0">
+          <Plus className="h-4 w-4 mr-1.5" />
+          <span className="hidden sm:inline">Novo produto</span>
+          <span className="sm:hidden">Novo</span>
+        </Button>
       </div>
 
       {groups.length === 0 ? (
@@ -180,8 +211,8 @@ export function PricesClient() {
             <TrendingDown className="h-10 w-10 text-[var(--muted-foreground)] mb-4" />
             <p className="font-medium mb-1">Nenhum preço registrado</p>
             <p className="text-sm text-[var(--muted-foreground)] max-w-xs">
-              Adicione itens com loja e preço em qualquer lista e os dados aparecerão aqui para
-              comparação.
+              Adicione itens com loja e preço em qualquer lista, ou clique em{' '}
+              <strong>Novo produto</strong> para cadastrar direto aqui.
             </p>
           </CardContent>
         </Card>
@@ -421,6 +452,67 @@ export function PricesClient() {
         variant="destructive"
         onConfirm={confirmRemove}
       />
+
+      {/* New product dialog */}
+      <Dialog open={newProductOpen} onOpenChange={(o) => !o && setNewProductOpen(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Novo produto</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div className="space-y-1">
+              <Label htmlFor="new-product-name">Nome do produto</Label>
+              <Input
+                id="new-product-name"
+                placeholder="Ex: Arroz 5kg"
+                value={newProductName}
+                onChange={(e) => setNewProductName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && saveNewProduct()}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Loja</Label>
+              <Select value={newProductStoreId} onValueChange={setNewProductStoreId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar loja" />
+                </SelectTrigger>
+                <SelectContent>
+                  {stores.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.icon} {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Preço (R$)</Label>
+              <CurrencyInput value={newProductPrice} onChange={setNewProductPrice} />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setNewProductOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={saveNewProduct}
+                disabled={
+                  !newProductName.trim() ||
+                  !newProductStoreId ||
+                  !newProductPrice ||
+                  newProductPrice <= 0
+                }
+              >
+                Cadastrar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -489,11 +489,20 @@ export const useAppStore = create<AppState & AppActions>()(
         )
         if (exists) return false
         const t = now()
+        const record: PriceRecord = {
+          id: genId(),
+          productName,
+          productKey: key,
+          storeId,
+          price: priceCents,
+          recordedAt: t,
+        }
         set((s) => ({
           productPrices: [
             ...s.productPrices,
             { productKey: key, productName, storeId, price: priceCents, updatedAt: t },
           ],
+          priceHistory: [record, ...s.priceHistory],
         }))
         return true
       },

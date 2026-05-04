@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { CurrencyInput } from '@/components/ui/currency-input'
+import { ItemNameInput } from '@/components/ui/item-name-input'
 import {
   Select,
   SelectContent,
@@ -15,10 +16,12 @@ import {
 import { UNITS, normalizeUnit } from '@/lib/units'
 import { useAppStore } from '@/store/use-app-store'
 import { useShallow } from 'zustand/react/shallow'
+import { useItemSuggestions } from '@/hooks/use-item-suggestions'
 import { toast } from '@/hooks/use-toast'
 import { getPriceAlert } from '@/lib/price-alert'
 import { PriceAlertBanner } from './price-alert-banner'
 import type { Item, Category, Store, Priority, Unit } from '@/types'
+import type { ItemSuggestion } from '@/hooks/use-item-suggestions'
 
 interface EditItemDialogProps {
   item: Item | null
@@ -53,6 +56,16 @@ function EditItemForm({ item, categories, stores, onClose }: EditFormProps) {
     [name, price, storeId, productPrices, stores]
   )
 
+  const autocompleteSuggestions = useItemSuggestions(name)
+
+  function handleSelectSuggestion(s: ItemSuggestion) {
+    setName(s.displayName)
+    if (s.categoryId && !category) setCategory(s.categoryId)
+    if (s.unit && !unit) setUnit(s.unit)
+    if (s.storeId && !storeId) setStoreId(s.storeId)
+    if (s.price !== undefined && price === undefined) setPrice(s.price)
+  }
+
   function save() {
     if (!name.trim()) return
     const ok = updateItem(item.id, {
@@ -78,11 +91,13 @@ function EditItemForm({ item, categories, stores, onClose }: EditFormProps) {
     <div className="space-y-3 mt-2">
       <div className="space-y-1">
         <Label>Nome *</Label>
-        <Input
+        <ItemNameInput
           autoFocus
           value={name}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && save()}
+          onChange={setName}
+          onSelect={handleSelectSuggestion}
+          suggestions={autocompleteSuggestions}
+          onEnter={save}
         />
       </div>
       <div className="grid grid-cols-2 gap-3">
