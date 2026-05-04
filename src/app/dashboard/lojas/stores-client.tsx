@@ -1,12 +1,10 @@
 'use client'
-import { useState, useMemo, useRef } from 'react'
-import { Plus, Trash2, Building2, TrendingDown, Search, X } from 'lucide-react'
+import { useState } from 'react'
+import { Plus, Trash2, Building2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import {
   Dialog,
   DialogContent,
@@ -19,16 +17,16 @@ import { useMounted } from '@/hooks/use-mounted'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from '@/hooks/use-toast'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import { formatCurrency } from '@/lib/utils'
-import type { PriceRecord } from '@/types'
 
-const EMOJI_SUGGESTIONS = ['🏪', '🏬', '🛒', '🛍️', '🏢', '🏦', '🚗', '🌐', '📦', '🍊', '🟡', '🔵', '🟢', '🔴', '⭐']
+const EMOJI_SUGGESTIONS = [
+  '🏪', '🏬', '🛒', '🛍️', '🏢', '🏦', '🚗', '🌐', '📦',
+  '🍊', '🟡', '🔵', '🟢', '🔴', '⭐',
+]
 
 export function StoresClient() {
   const mounted = useMounted()
   const stores = useAppStore((s) => s.stores)
   const items = useAppStore((s) => s.items)
-  const priceHistory = useAppStore((s) => s.priceHistory)
   const addStore = useAppStore((s) => s.addStore)
   const deleteStore = useAppStore((s) => s.deleteStore)
 
@@ -37,46 +35,14 @@ export function StoresClient() {
   const [name, setName] = useState('')
   const [icon, setIcon] = useState('🏪')
   const [color, setColor] = useState('#6366f1')
-  const [search, setSearch] = useState('')
-  const searchInputRef = useRef<HTMLInputElement>(null)
 
-  // Build comparison data: group price history by productKey
-  const comparisonData = useMemo(() => {
-    const map = new Map<string, { productName: string; records: Map<string, PriceRecord> }>()
-    for (const r of priceHistory) {
-      if (!map.has(r.productKey)) {
-        map.set(r.productKey, { productName: r.productName, records: new Map() })
-      }
-      const group = map.get(r.productKey)!
-      const existing = group.records.get(r.storeId)
-      if (!existing || r.recordedAt > existing.recordedAt) {
-        group.records.set(r.storeId, r)
-      }
-    }
-    return [...map.entries()]
-      .map(([key, { productName, records }]) => ({
-        key,
-        productName,
-        storeRecords: [...records.values()].sort((a, b) => a.price - b.price),
-      }))
-      .filter((p) => p.storeRecords.length > 0)
-      .sort((a, b) => a.productName.localeCompare(b.productName))
-  }, [priceHistory])
-
-  const filteredComparison = useMemo(() => {
-    if (!search.trim()) return comparisonData
-    const q = search.toLowerCase()
-    return comparisonData.filter((p) => p.productName.toLowerCase().includes(q))
-  }, [comparisonData, search])
-
-  if (!mounted)
+  if (!mounted) {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <Skeleton className="h-8 w-24" />
           <Skeleton className="h-9 w-36 rounded-md" />
         </div>
-        <Skeleton className="h-9 w-64 rounded-md" />
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-20 rounded-lg" />
@@ -84,6 +50,7 @@ export function StoresClient() {
         </div>
       </div>
     )
+  }
 
   function createStore() {
     if (!name.trim()) return
@@ -102,7 +69,7 @@ export function StoresClient() {
     setConfirmDeleteId(null)
   }
 
-  const itemCountForStore = (storeId: string) => items.filter((i) => i.storeId === storeId).length
+  const itemCount = (storeId: string) => items.filter((i) => i.storeId === storeId).length
 
   const defaults = stores.filter((s) => s.isDefault)
   const custom = stores.filter((s) => !s.isDefault)
@@ -173,164 +140,67 @@ export function StoresClient() {
         </Dialog>
       </div>
 
-      <Tabs defaultValue="lojas">
-        <TabsList>
-          <TabsTrigger value="lojas">Lojas</TabsTrigger>
-          <TabsTrigger value="precos">
-            Comparar preços
-            {comparisonData.length > 0 && (
-              <Badge variant="secondary" className="ml-1.5 text-xs px-1.5 py-0">
-                {comparisonData.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="lojas" className="space-y-6 mt-4">
-          {/* Default stores */}
-          <div>
-            <h2 className="text-sm font-semibold text-[var(--muted-foreground)] mb-3">PADRÃO</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-              {defaults.map((store) => (
-                <Card key={store.id}>
-                  <CardContent className="p-3 flex items-center gap-2">
-                    <span className="text-xl">{store.icon ?? '🏪'}</span>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{store.name}</p>
-                      <p className="text-xs text-[var(--muted-foreground)]">
-                        {itemCountForStore(store.id)} ite{itemCountForStore(store.id) === 1 ? 'm' : 'ns'}
-                      </p>
-                    </div>
-                    <div
-                      className="h-2 w-2 rounded-full ml-auto shrink-0"
-                      style={{ backgroundColor: store.color ?? '#94a3b8' }}
-                    />
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-
-          {/* Custom stores */}
-          <div>
-            <h2 className="text-sm font-semibold text-[var(--muted-foreground)] mb-3">
-              PERSONALIZADAS
-            </h2>
-            {custom.length === 0 ? (
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center py-10 text-center">
-                  <Building2 className="h-8 w-8 text-[var(--muted-foreground)] mb-3" />
-                  <p className="text-sm text-[var(--muted-foreground)]">
-                    Nenhuma loja personalizada
+      <div>
+        <h2 className="text-sm font-semibold text-[var(--muted-foreground)] mb-3">PADRÃO</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          {defaults.map((store) => (
+            <Card key={store.id}>
+              <CardContent className="p-3 flex items-center gap-2">
+                <span className="text-xl">{store.icon ?? '🏪'}</span>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">{store.name}</p>
+                  <p className="text-xs text-[var(--muted-foreground)]">
+                    {itemCount(store.id)} ite{itemCount(store.id) === 1 ? 'm' : 'ns'}
                   </p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                {custom.map((store) => (
-                  <Card key={store.id} className="group">
-                    <CardContent className="p-3 flex items-center gap-2">
-                      <span className="text-xl">{store.icon ?? '🏪'}</span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium truncate">{store.name}</p>
-                        <p className="text-xs text-[var(--muted-foreground)]">
-                          {itemCountForStore(store.id)} ite{itemCountForStore(store.id) === 1 ? 'm' : 'ns'}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => setConfirmDeleteId(store.id)}
-                        aria-label="Excluir loja"
-                        className="flex items-center justify-center h-10 w-10 md:h-auto md:w-auto md:p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 rounded hover:bg-red-100 dark:hover:bg-red-950 text-red-400 hover:text-red-600 transition-all shrink-0 cursor-pointer"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="precos" className="mt-4 space-y-4">
-          {comparisonData.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                <TrendingDown className="h-8 w-8 text-[var(--muted-foreground)] mb-3" />
-                <p className="text-sm font-medium mb-1">Nenhum histórico de preços</p>
-                <p className="text-xs text-[var(--muted-foreground)]">
-                  Ao adicionar itens com loja e preço, os dados aparecerão aqui para comparação.
-                </p>
+                </div>
+                <div
+                  className="h-2 w-2 rounded-full ml-auto shrink-0"
+                  style={{ backgroundColor: store.color ?? '#94a3b8' }}
+                />
               </CardContent>
             </Card>
-          ) : (
-            <>
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--muted-foreground)] pointer-events-none" />
-                <Input
-                  ref={searchInputRef}
-                  className={search ? 'pl-8 pr-8' : 'pl-8'}
-                  placeholder="Buscar produto..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-                {search && (
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <h2 className="text-sm font-semibold text-[var(--muted-foreground)] mb-3">
+          PERSONALIZADAS
+        </h2>
+        {custom.length === 0 ? (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-10 text-center">
+              <Building2 className="h-8 w-8 text-[var(--muted-foreground)] mb-3" />
+              <p className="text-sm text-[var(--muted-foreground)]">
+                Nenhuma loja personalizada
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+            {custom.map((store) => (
+              <Card key={store.id} className="group">
+                <CardContent className="p-3 flex items-center gap-2">
+                  <span className="text-xl">{store.icon ?? '🏪'}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium truncate">{store.name}</p>
+                    <p className="text-xs text-[var(--muted-foreground)]">
+                      {itemCount(store.id)} ite{itemCount(store.id) === 1 ? 'm' : 'ns'}
+                    </p>
+                  </div>
                   <button
-                    onClick={() => { setSearch(''); searchInputRef.current?.focus() }}
-                    aria-label="Limpar busca"
-                    className="absolute right-0 top-0 h-full px-2.5 flex items-center text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors cursor-pointer"
+                    onClick={() => setConfirmDeleteId(store.id)}
+                    aria-label="Excluir loja"
+                    className="flex items-center justify-center h-10 w-10 md:h-auto md:w-auto md:p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 rounded hover:bg-red-100 dark:hover:bg-red-950 text-red-400 hover:text-red-600 transition-all shrink-0 cursor-pointer"
                   >
-                    <X className="h-3.5 w-3.5" />
+                    <Trash2 className="h-3.5 w-3.5" />
                   </button>
-                )}
-              </div>
-              {filteredComparison.length === 0 ? (
-                <p className="text-center text-sm text-[var(--muted-foreground)] py-6">
-                  Nenhum produto encontrado
-                </p>
-              ) : (
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {filteredComparison.map(({ key, productName, storeRecords }) => (
-                    <Card key={key}>
-                      <CardContent className="p-3 space-y-2">
-                        <p className="font-medium text-sm truncate">{productName}</p>
-                        <div className="space-y-1.5">
-                          {storeRecords.map((r) => {
-                            const store = stores.find((s) => s.id === r.storeId)
-                            const isBest = storeRecords.length > 1 && r.price === storeRecords[0].price
-                            return (
-                              <div key={r.storeId} className="flex items-center gap-2 text-sm">
-                                <span className="text-base">{store?.icon ?? '🏪'}</span>
-                                <span className="flex-1 truncate text-xs">
-                                  {store?.name ?? r.storeId}
-                                </span>
-                                <span
-                                  className={
-                                    isBest
-                                      ? 'font-semibold text-green-600 dark:text-green-400'
-                                      : 'font-medium'
-                                  }
-                                >
-                                  {formatCurrency(r.price)}
-                                </span>
-                                {isBest && (
-                                  <Badge variant="success" className="text-xs px-1 py-0 shrink-0">
-                                    ↓
-                                  </Badge>
-                                )}
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-        </TabsContent>
-      </Tabs>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
 
       <ConfirmDialog
         open={!!confirmDeleteId}

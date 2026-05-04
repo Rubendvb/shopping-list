@@ -10,6 +10,7 @@ Aplicativo web de gerenciamento de listas de compras. Single-user, sem autentica
 - CRUD de itens por lista (nome, quantidade, unidade, preço estimado, preço real, categoria, loja, prioridade, notas)
   - **Bloqueio de duplicados**: Não permite itens com o mesmo nome na mesma lista
   - **Comparador Global de Preços**: Base de dados de preços desacoplada. Exibe alertas de onde o produto é mais barato ou se o atual é o "Melhor preço" (suportando empates)
+  - **Visão Centralizada de Preços (`/dashboard/precos`)**: Agrupa e lista todos os produtos registrados, permitindo editar preços, adicionar novas lojas ou remover registros
   - **Sugestão Inteligente**: Ao adicionar itens, oferece preço mínimo e médio com preenchimento em 1 clique
 - Edição de itens via dialog com todos os campos (incluindo preço real e notas)
 - Marcar itens como comprados
@@ -79,6 +80,9 @@ shopping-list/
     │       │           ├── budget-card.tsx
     │       │           ├── edit-item-dialog.tsx
     │       │           └── item-card.tsx
+    │       ├── precos/
+    │       │   ├── page.tsx        # Wrapper → <PricesClient>
+    │       │   └── prices-client.tsx       # Visão centralizada de comparação de preços
     │       ├── estatisticas/
     │       │   └── page.tsx        # Estatísticas com filtro de período
     │       ├── historico/
@@ -162,6 +166,8 @@ productPrices: ProductPrice[]
 | `addStore({ name, icon?, color? })`           | Cria loja personalizada                                           |
 | `deleteStore(id)`                             | Remove loja, limpa `storeId` nos itens e remove seus `productPrices` |
 | `updateProductPrice(key, storeId, price)`     | Faz upsert global de preço num produto sem alterar os itens         |
+| `addProductPrice(key, name, storeId, price)`  | Adiciona manualmente um novo par de loja e preço a um produto       |
+| `removeProductPrice(key, storeId)`            | Remove o registro de preço de uma loja para um produto              |
 | `importData({ ... })`                         | Substitui todo o estado (fluxo de restore)                  |
 
 **Migração:**

@@ -36,6 +36,7 @@ src/
     dashboard/        # All pages — all Client Components
       page.tsx        # Home: summary stats + recent active lists
       listas/         # Lists page + [id] detail page
+      precos/         # Price comparison page
       estatisticas/   # Statistics page
       historico/      # Purchase history page
       categorias/     # Categories management
@@ -76,7 +77,7 @@ All pages call `useMounted()` and return `null` before mount. This prevents loca
 Single store with `persist` middleware writing to localStorage key `"listafacil-storage"`. SSR-safe: storage returns no-ops when `typeof window === "undefined"`.
 
 State: `lists`, `items`, `categories`, `history`, `stores`, `priceHistory`, `productPrices`
-Actions: `addList`, `updateList`, `deleteList`, `completeList`, `duplicateList`, `addItem`, `updateItem`, `deleteItem`, `reorderItems`, `addCategory`, `deleteCategory`, `addStore`, `deleteStore`, `updateProductPrice`, `importData`
+Actions: `addList`, `updateList`, `deleteList`, `completeList`, `duplicateList`, `addItem`, `updateItem`, `deleteItem`, `reorderItems`, `addCategory`, `deleteCategory`, `addStore`, `deleteStore`, `updateProductPrice`, `addProductPrice`, `removeProductPrice`, `importData`
 
 - `completeList(id)` builds a `PurchaseHistory` snapshot from current items and marks the list as completed.
 - `duplicateList(id)` copies the list and all its items (with `isPurchased: false`), returns the new list ID.
@@ -84,6 +85,7 @@ Actions: `addList`, `updateList`, `deleteList`, `completeList`, `duplicateList`,
 - `deleteStore(id)` also clears `storeId` on all items that referenced the deleted store and removes its entries from `productPrices`.
 - `reorderItems(listId, orderedIds)` updates the `order` field of all items in the list according to the new ID array.
 - `updateProductPrice(productKey, storeId, price)` does a global price update in `productPrices` without mutating items directly.
+- `addProductPrice`, `removeProductPrice` manage manual additions/removals of store price entries for a product.
 - `importData(data)` replaces the entire store state (used by the backup restore flow).
 - `addItem` auto-assigns `order = max(existing orders) + 1` so new items always land at the bottom in manual sort. Returns `false` if an item with the exact same name already exists in the list. It also upserts the price into `productPrices`.
 - `updateItem` returns `false` if the new name duplicates an existing item. It automatically syncs the product name in `priceHistory` and `productPrices` for global name corrections, and upserts the new price.
@@ -144,6 +146,7 @@ The app includes a globally decoupled price comparator that tracks item prices a
 - Price badges: In `list-detail-client.tsx`, items display badges: green for "Best price", outline for "Tie", and amber ("↓ Loja · -R$ X,XX") showing where to save and how much.
 - Suggestions: When adding an item, a `<SuggestionHint>` appears with the minimum and average prices (if different), allowing 1-click apply of store and price.
 - Ties handling: If multiple stores share the lowest price, the badge will list all of them joined by comma.
+- Centralized View (`/dashboard/precos`): Displays all product prices grouped by `productKey`. Shows "Best price" badges, supports searching, adding new store prices (`addProductPrice`), and removing them.
 
 ### Store versioning and migration
 

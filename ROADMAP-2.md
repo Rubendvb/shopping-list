@@ -93,23 +93,30 @@ Status:
 
 ---
 
-## Fase 6 — Visão de comparação (nova tela)
+## ✅ Fase 6 — (já concluída)
 
-Regras:
+Visão de comparação — `/dashboard/precos`
 
-- listar produto → lojas → preços
-- destacar melhor preço
-- mostrar empate
-- permitir edição
+Status:
 
-Aplicar em:
-
-- nova tela (ex: /precos)
-
-Entregáveis:
-
-- comparador completo
-- gestão de preços centralizada
+- rota `/dashboard/precos` criada (page + `PricesClient`)
+- `PricesClient` lê `productPrices` via `useShallow` — reativo a qualquer update global
+- produtos agrupados por `productKey`, ordenados A-Z; lojas ordenadas pelo preço (menor → maior)
+- destaque visual por estado:
+  - preço mais barato único: verde + badge `↓`
+  - empate: verde + badge `=`
+  - acima do melhor: âmbar (sem badge extra)
+- `updatedAt` exibido por linha (`dd/MM`)
+- edição de preço via dialog leve (`updateProductPrice`)
+- adição de nova loja para produto via dialog com Select + CurrencyInput (`addProductPrice`)
+  - Select filtra somente lojas sem preço cadastrado para aquele produto
+  - retorna `false` se já existir par (`productKey × storeId`) — toast de erro
+- remoção via `ConfirmDialog` (`removeProductPrice`)
+- busca por nome de produto
+- responsivo: 1 col (mobile) / 2 cols (sm) / 3 cols (lg)
+- ações de editar/remover visíveis sempre no mobile, no hover no desktop
+- `addProductPrice` e `removeProductPrice` adicionados ao store
+- nav item "Comparador" (`TrendingDown`) adicionado ao Sidebar
 
 ---
 

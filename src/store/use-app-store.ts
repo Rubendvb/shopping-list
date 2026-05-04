@@ -89,6 +89,10 @@ interface AppActions {
    * No-op if the entry doesn't exist yet.
    */
   updateProductPrice: (productKey: string, storeId: string, priceCents: number) => void
+  /** Inserts a new (productKey × storeId) entry. Returns false if the pair already exists. */
+  addProductPrice: (productName: string, storeId: string, priceCents: number) => boolean
+  /** Removes a (productKey × storeId) entry from the global price table. */
+  removeProductPrice: (productKey: string, storeId: string) => void
 
   // Categories
   addCategory: (data: { name: string; icon?: string; color?: string }) => void
@@ -476,6 +480,31 @@ export const useAppStore = create<AppState & AppActions>()(
           next[idx] = { ...next[idx], price: priceCents, updatedAt: t }
           return { productPrices: next }
         })
+      },
+
+      addProductPrice: (productName, storeId, priceCents) => {
+        const key = productName.toLowerCase().trim()
+        const exists = get().productPrices.some(
+          (p) => p.productKey === key && p.storeId === storeId
+        )
+        if (exists) return false
+        const t = now()
+        set((s) => ({
+          productPrices: [
+            ...s.productPrices,
+            { productKey: key, productName, storeId, price: priceCents, updatedAt: t },
+          ],
+        }))
+        return true
+      },
+
+      removeProductPrice: (productKey, storeId) => {
+        const key = productKey.toLowerCase().trim()
+        set((s) => ({
+          productPrices: s.productPrices.filter(
+            (p) => !(p.productKey === key && p.storeId === storeId)
+          ),
+        }))
       },
 
       importData: ({ lists, items, categories, history, stores, priceHistory, productPrices }) => {
