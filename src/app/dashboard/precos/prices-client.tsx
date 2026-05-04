@@ -218,7 +218,7 @@ export function PricesClient() {
         </Card>
       ) : (
         <>
-          <div className="relative max-w-xs">
+          <div className="relative w-full sm:max-w-xs">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--muted-foreground)] pointer-events-none" />
             <Input
               ref={searchRef}
@@ -246,7 +246,7 @@ export function PricesClient() {
               Nenhum produto encontrado
             </p>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               {filtered.map((group) => {
                 const { productKey, productName, entries, bestPrice, tieCount } = group
                 const missingStores = stores.filter(
@@ -255,14 +255,14 @@ export function PricesClient() {
                 return (
                   <Card key={productKey}>
                     <CardContent className="p-3 space-y-2.5">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="font-semibold text-sm leading-tight">{productName}</p>
+                      <div className="flex items-start justify-between gap-2 min-w-0">
+                        <p className="font-semibold text-sm leading-tight truncate min-w-0">{productName}</p>
                         {missingStores.length > 0 && (
                           <button
                             onClick={() => openAdd(group)}
                             aria-label="Adicionar loja ao produto"
                             title="Adicionar loja"
-                            className="shrink-0 text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors cursor-pointer p-0.5"
+                            className="shrink-0 flex items-center justify-center h-8 w-8 rounded text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--secondary)] transition-colors cursor-pointer"
                           >
                             <Plus className="h-4 w-4" />
                           </button>
@@ -312,25 +312,25 @@ export function PricesClient() {
                               ) : (
                                 <span className="w-5 shrink-0" aria-hidden />
                               )}
-                              <span className="text-xs text-[var(--muted-foreground)] shrink-0 tabular-nums">
+                              <span className="hidden lg:inline text-xs text-[var(--muted-foreground)] shrink-0 tabular-nums">
                                 {fmtDate(entry.updatedAt)}
                               </span>
                               <div className="flex items-center opacity-100 md:opacity-0 md:group-hover/row:opacity-100 transition-opacity shrink-0 gap-0">
                                 <button
                                   onClick={() => openEdit(entry, productName)}
                                   aria-label="Editar preço"
-                                  className="flex items-center justify-center h-7 w-7 rounded hover:bg-[var(--secondary)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors cursor-pointer"
+                                  className="flex items-center justify-center h-10 w-10 md:h-7 md:w-7 rounded hover:bg-[var(--secondary)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors cursor-pointer"
                                 >
-                                  <Pencil className="h-3 w-3" />
+                                  <Pencil className="h-3.5 w-3.5 md:h-3 md:w-3" />
                                 </button>
                                 <button
                                   onClick={() =>
                                     setRemoveTarget({ productKey, storeId: entry.storeId })
                                   }
                                   aria-label="Remover preço"
-                                  className="flex items-center justify-center h-7 w-7 rounded hover:bg-red-100 dark:hover:bg-red-950 text-red-400 hover:text-red-600 transition-colors cursor-pointer"
+                                  className="flex items-center justify-center h-10 w-10 md:h-7 md:w-7 rounded hover:bg-red-100 dark:hover:bg-red-950 text-red-400 hover:text-red-600 transition-colors cursor-pointer"
                                 >
-                                  <Trash2 className="h-3 w-3" />
+                                  <Trash2 className="h-3.5 w-3.5 md:h-3 md:w-3" />
                                 </button>
                               </div>
                             </div>
