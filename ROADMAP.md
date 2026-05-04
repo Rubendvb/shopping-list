@@ -228,11 +228,11 @@ Melhorias incrementais ou opcionais que agregam valor sem urgência.
 
 ---
 
-### 21. Busca global
+### ✅ 21. Busca global
 
 **Descrição:** Campo de busca que filtra itens em todas as listas ativas simultaneamente, sem precisar entrar em cada lista.
 
-**Implementação:** Nova rota `/dashboard/busca` ou modal de busca global acionado por atalho. Retorna itens agrupados por lista com link direto para cada um.
+**Implementação:** Modal de busca global (`GlobalSearch`) acionado por `Cmd+K` / `Ctrl+K` ou pelo botão "Buscar" na sidebar. Monta em `dashboard/layout.tsx`. Resultados agrupados por lista com link direto para cada uma. Mini-store `useGlobalSearch` (Zustand) para estado de abertura compartilhado entre o atalho e o botão da sidebar.
 
 ---
 

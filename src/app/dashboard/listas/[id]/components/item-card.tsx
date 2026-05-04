@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency, cn } from '@/lib/utils'
 import { normalizeUnit, unitAbbr } from '@/lib/units'
-import type { Item, Category } from '@/types'
+import type { Item, Category, Store } from '@/types'
 
 export const priorityLabel = { HIGH: 'Alta', MEDIUM: 'Média', LOW: 'Baixa' }
 export const priorityColor = {
@@ -23,6 +23,11 @@ interface ItemCardProps {
   shoppingMode: boolean
   isCompleted: boolean
   categories: Category[]
+  stores: Store[]
+  priceStatus?: 'best' | 'tie' | 'above'
+  betterStoreNames?: string[]
+  /** cents — how much cheaper the best price is (only when status is 'above') */
+  savings?: number
   onToggle: (id: string, isPurchased: boolean) => void
   onEdit: (item: Item) => void
   onDelete: (id: string) => void
@@ -34,6 +39,10 @@ export const SortableItemCard = React.memo(function SortableItemCard({
   shoppingMode,
   isCompleted,
   categories,
+  stores,
+  priceStatus,
+  betterStoreNames,
+  savings,
   onToggle,
   onEdit,
   onDelete,
@@ -51,6 +60,7 @@ export const SortableItemCard = React.memo(function SortableItemCard({
   }
 
   const category = categories.find((c) => c.id === item.categoryId)
+  const store = stores.find((s) => s.id === item.storeId)
 
   return (
     <div ref={setNodeRef} style={style} {...attributes}>
@@ -121,6 +131,32 @@ export const SortableItemCard = React.memo(function SortableItemCard({
                     <span className="text-xs bg-[var(--secondary)] px-1.5 py-0.5 rounded">
                       {category.icon} {category.name}
                     </span>
+                  )}
+                  {store && (
+                    <span
+                      className="text-xs px-1.5 py-0.5 rounded font-medium"
+                      style={{
+                        backgroundColor: (store.color ?? '#6366f1') + '20',
+                        color: store.color ?? '#6366f1',
+                      }}
+                    >
+                      {store.icon} {store.name}
+                    </span>
+                  )}
+                  {priceStatus === 'best' && (
+                    <Badge variant="success" className="text-xs">
+                      Melhor preço
+                    </Badge>
+                  )}
+                  {priceStatus === 'tie' && (
+                    <Badge variant="outline" className="text-xs">
+                      Empate
+                    </Badge>
+                  )}
+                  {priceStatus === 'above' && betterStoreNames && betterStoreNames.length > 0 && savings !== undefined && (
+                    <Badge variant="warning" className="text-xs">
+                      ↓ {betterStoreNames.join(', ')} · -{formatCurrency(savings)}
+                    </Badge>
                   )}
                 </>
               )}

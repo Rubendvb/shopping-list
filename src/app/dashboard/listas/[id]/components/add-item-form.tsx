@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,16 +16,23 @@ import {
 } from '@/components/ui/select'
 import { UNITS } from '@/lib/units'
 import { useAppStore } from '@/store/use-app-store'
+import { useShallow } from 'zustand/react/shallow'
 import { toast } from '@/hooks/use-toast'
-import type { Category, Priority, Unit } from '@/types'
+import { getPriceAlert } from '@/lib/price-alert'
+import { PriceAlertBanner } from './price-alert-banner'
+import { SuggestionHint } from './suggestion-hint'
+import type { SuggestionData } from './suggestion-hint'
+import type { Category, Store, Priority, Unit } from '@/types'
 
 interface AddItemFormProps {
   listId: string
   categories: Category[]
+  stores: Store[]
 }
 
-export function AddItemForm({ listId, categories }: AddItemFormProps) {
+export function AddItemForm({ listId, categories, stores }: AddItemFormProps) {
   const addItem = useAppStore((s) => s.addItem)
+  const productPrices = useAppStore(useShallow((s) => s.productPrices))
 
   const [showAdd, setShowAdd] = useState(false)
   const [name, setName] = useState('')
@@ -33,7 +40,35 @@ export function AddItemForm({ listId, categories }: AddItemFormProps) {
   const [unit, setUnit] = useState<Unit | ''>('')
   const [price, setPrice] = useState<number | undefined>(undefined)
   const [category, setCategory] = useState('')
+  const [storeId, setStoreId] = useState('')
   const [priority, setPriority] = useState<Priority>('MEDIUM')
+
+  const suggestion = useMemo((): SuggestionData | null => {
+    const productKey = name.toLowerCase().trim()
+    if (productKey.length < 2) return null
+    const entries = productPrices.filter((p) => p.productKey === productKey)
+    if (!entries.length) return null
+
+    const minPrice = Math.min(...entries.map((p) => p.price))
+    const avgPrice = Math.round(entries.reduce((s, p) => s + p.price, 0) / entries.length)
+    const bestEntries = entries.filter((p) => p.price === minPrice)
+    const bestStoreNames = bestEntries
+      .map((p) => stores.find((s) => s.id === p.storeId)?.name)
+      .filter(Boolean) as string[]
+
+    return { minPrice, avgPrice, bestStoreNames, bestStoreId: bestEntries[0]?.storeId ?? '' }
+  }, [name, productPrices, stores])
+
+  const priceAlert = useMemo(
+    () => (price ? getPriceAlert(name, price, storeId || undefined, productPrices, stores) : null),
+    [name, price, storeId, productPrices, stores]
+  )
+
+  function applySuggestion() {
+    if (!suggestion) return
+    setPrice(suggestion.minPrice)
+    setStoreId(suggestion.bestStoreId)
+  }
 
   function reset() {
     setName('')
@@ -41,21 +76,27 @@ export function AddItemForm({ listId, categories }: AddItemFormProps) {
     setUnit('')
     setPrice(undefined)
     setCategory('')
+    setStoreId('')
     setPriority('MEDIUM')
     setShowAdd(false)
   }
 
   function handleAdd() {
     if (!name.trim()) return
-    addItem({
+    const ok = addItem({
       listId,
       name: name.trim(),
       quantity: parseFloat(qty) || 1,
       unit: unit || undefined,
       estimatedPrice: price !== undefined ? price / 100 : undefined,
       categoryId: category || undefined,
+      storeId: storeId || undefined,
       priority,
     })
+    if (!ok) {
+      toast('Item já existe na lista', 'destructive')
+      return
+    }
     reset()
     toast('Item adicionado', 'success')
   }
@@ -116,6 +157,21 @@ export function AddItemForm({ listId, categories }: AddItemFormProps) {
               <CurrencyInput value={price} onChange={setPrice} />
             </div>
             <div className="space-y-1">
+              <Label className="text-xs">Loja</Label>
+              <Select value={storeId} onValueChange={setStoreId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar" />
+                </SelectTrigger>
+                <SelectContent>
+                  {stores.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.icon} {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
               <Label className="text-xs">Categoria</Label>
               <Select value={category} onValueChange={setCategory}>
                 <SelectTrigger>
@@ -150,6 +206,12 @@ export function AddItemForm({ listId, categories }: AddItemFormProps) {
               </Button>
             </div>
           </div>
+          {suggestion && !price && (
+            <div className="mt-3">
+              <SuggestionHint data={suggestion} onApply={applySuggestion} />
+            </div>
+          )}
+          {priceAlert && <div className="mt-3"><PriceAlertBanner alert={priceAlert} /></div>}
         </CardContent>
       </Card>
 
@@ -168,6 +230,9 @@ export function AddItemForm({ listId, categories }: AddItemFormProps) {
                 onChange={(e) => setName(e.target.value)}
               />
             </div>
+            {suggestion && !price && (
+              <SuggestionHint data={suggestion} onApply={applySuggestion} />
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label>Quantidade</Label>
@@ -198,6 +263,22 @@ export function AddItemForm({ listId, categories }: AddItemFormProps) {
             <div className="space-y-1">
               <Label>Preço estimado (R$)</Label>
               <CurrencyInput value={price} onChange={setPrice} />
+            </div>
+            <PriceAlertBanner alert={priceAlert} />
+            <div className="space-y-1">
+              <Label>Loja</Label>
+              <Select value={storeId} onValueChange={setStoreId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar" />
+                </SelectTrigger>
+                <SelectContent>
+                  {stores.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.icon} {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1">
               <Label>Categoria</Label>

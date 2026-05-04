@@ -1,5 +1,5 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { notFound } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
@@ -20,7 +20,6 @@ import {
 } from '@dnd-kit/sortable'
 import {
   ArrowLeft,
-  Plus,
   Pencil,
   Copy,
   Share2,
@@ -29,6 +28,7 @@ import {
   Search,
   SlidersHorizontal,
   ShoppingCart,
+  X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -51,7 +51,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { cn, formatCurrency, calcEstimated, calcActual } from '@/lib/utils'
+import { formatCurrency, calcEstimated, calcActual } from '@/lib/utils'
+import { getPriceAlert } from '@/lib/price-alert'
 import { CurrencyInput } from '@/components/ui/currency-input'
 import { normalizeUnit, unitAbbr } from '@/lib/units'
 import { useAppStore } from '@/store/use-app-store'
@@ -72,6 +73,17 @@ export function ListDetailClient({ listId }: { listId: string }) {
   const list = useAppStore((s) => s.lists.find((l) => l.id === listId))
   const listItems = useAppStore(useShallow((s) => s.items.filter((i) => i.listId === listId)))
   const categories = useAppStore((s) => s.categories)
+  const stores = useAppStore((s) => s.stores)
+
+  // Scope subscription to only product keys present in this list — avoids re-renders
+  // when a price update in another list changes a product not in this one.
+  const listProductKeys = useMemo(
+    () => new Set(listItems.map((i) => i.name.toLowerCase().trim())),
+    [listItems]
+  )
+  const productPrices = useAppStore(
+    useShallow((s) => s.productPrices.filter((p) => listProductKeys.has(p.productKey)))
+  )
   const storeUpdateItem = useAppStore((s) => s.updateItem)
   const storeDeleteItem = useAppStore((s) => s.deleteItem)
   const storeCompleteList = useAppStore((s) => s.completeList)
@@ -80,6 +92,7 @@ export function ListDetailClient({ listId }: { listId: string }) {
   const storeReorderItems = useAppStore((s) => s.reorderItems)
 
   const [search, setSearch] = useState('')
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const [filterCategory, setFilterCategory] = useState('all')
   const [filterStatus, setFilterStatus] = useState('all')
   const [sortBy, setSortBy] = useState('priority')
@@ -116,6 +129,12 @@ export function ListDetailClient({ listId }: { listId: string }) {
           if (a.isPurchased !== b.isPurchased) return a.isPurchased ? 1 : -1
           return priorityOrder[a.priority] - priorityOrder[b.priority] || orderTie
         }
+        if (sortBy === 'store') {
+          if (a.isPurchased !== b.isPurchased) return a.isPurchased ? 1 : -1
+          const storeA = stores.find((s) => s.id === a.storeId)?.name ?? '￿'
+          const storeB = stores.find((s) => s.id === b.storeId)?.name ?? '￿'
+          return storeA.localeCompare(storeB) || a.name.localeCompare(b.name)
+        }
         if (a.isPurchased !== b.isPurchased) return a.isPurchased ? 1 : -1
         const catA = categories.find((c) => c.id === a.categoryId)?.name ?? ''
         const catB = categories.find((c) => c.id === b.categoryId)?.name ?? ''
@@ -123,7 +142,41 @@ export function ListDetailClient({ listId }: { listId: string }) {
         if (sortBy === 'name') return a.name.localeCompare(b.name) || orderTie
         return orderTie
       })
-  }, [listItems, search, filterCategory, filterStatus, sortBy, categories])
+  }, [listItems, search, filterCategory, filterStatus, sortBy, categories, stores])
+
+  // Compute price status per item using global productPrices table
+  const priceStatusMap = useMemo(() => {
+    const map = new Map<string, { status: 'best' | 'tie' | 'above'; betterStoreNames?: string[]; savings?: number }>()
+    for (const item of listItems) {
+      if (!item.estimatedPrice || !item.storeId) continue
+      const alert = getPriceAlert(item.name, item.estimatedPrice, item.storeId, productPrices, stores)
+      if (!alert) continue
+      if (alert.status === 'best' || alert.status === 'tie') {
+        map.set(item.id, { status: alert.status })
+      } else {
+        map.set(item.id, { status: 'above', betterStoreNames: alert.betterStoreNames, savings: alert.savings })
+      }
+    }
+    return map
+  }, [listItems, productPrices, stores])
+
+  // Groups for "por loja" view
+  const storeGroups = useMemo(() => {
+    if (sortBy !== 'store') return null
+    const groups = new Map<string | undefined, Item[]>()
+    for (const item of filtered) {
+      const key = item.storeId
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key)!.push(item)
+    }
+    return [...groups.entries()].sort(([a], [b]) => {
+      if (!a) return 1
+      if (!b) return -1
+      const nameA = stores.find((s) => s.id === a)?.name ?? ''
+      const nameB = stores.find((s) => s.id === b)?.name ?? ''
+      return nameA.localeCompare(nameB)
+    })
+  }, [filtered, sortBy, stores])
 
   if (!mounted) return (
     <div className="space-y-6 pb-6">
@@ -412,13 +465,23 @@ export function ListDetailClient({ listId }: { listId: string }) {
       {!shoppingMode && (
         <div className="flex flex-wrap gap-2 items-center">
           <div className="relative flex-1 min-w-40">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-[var(--muted-foreground)]" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--muted-foreground)] pointer-events-none" />
             <Input
-              className="pl-8"
+              ref={searchInputRef}
+              className={search ? 'pl-8 pr-8' : 'pl-8'}
               placeholder="Buscar item..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
+            {search && (
+              <button
+                onClick={() => { setSearch(''); searchInputRef.current?.focus() }}
+                aria-label="Limpar busca"
+                className="absolute right-0 top-0 h-full px-2.5 flex items-center text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors cursor-pointer"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
           <Select value={filterCategory} onValueChange={setFilterCategory}>
             <SelectTrigger className="w-40">
@@ -452,6 +515,7 @@ export function ListDetailClient({ listId }: { listId: string }) {
               <SelectItem value="priority">Prioridade</SelectItem>
               <SelectItem value="name">Nome</SelectItem>
               <SelectItem value="category">Categoria</SelectItem>
+              <SelectItem value="store">Por loja</SelectItem>
               <SelectItem value="manual">Manual</SelectItem>
             </SelectContent>
           </Select>
@@ -467,39 +531,91 @@ export function ListDetailClient({ listId }: { listId: string }) {
               : 'Nenhum item encontrado'}
           </div>
         )}
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={filtered.map((i) => i.id)} strategy={verticalListSortingStrategy}>
-            {filtered.map((item) => (
-              <SortableItemCard
-                key={item.id}
-                item={item}
-                isDraggable={sortBy === 'manual' && !shoppingMode && !list.isCompleted}
-                shoppingMode={shoppingMode}
-                isCompleted={!!list.isCompleted}
-                categories={categories}
-                onToggle={toggleItem}
-                onEdit={setEditingItem}
-                onDelete={deleteItem}
-              />
-            ))}
-          </SortableContext>
-        </DndContext>
+
+        {storeGroups ? (
+          // Store-grouped view
+          <div className="space-y-5">
+            {storeGroups.map(([gStoreId, groupItems]) => {
+              const store = stores.find((s) => s.id === gStoreId)
+              return (
+                <div key={gStoreId ?? 'no-store'} className="space-y-2">
+                  <div className="flex items-center gap-2 pb-1 border-b border-[var(--border)]">
+                    <span className="text-base">{store?.icon ?? '🏪'}</span>
+                    <span className="text-sm font-semibold">
+                      {store?.name ?? 'Sem loja'}
+                    </span>
+                    <Badge variant="secondary" className="text-xs ml-auto">
+                      {groupItems.length} ite{groupItems.length === 1 ? 'm' : 'ns'}
+                    </Badge>
+                  </div>
+                  {groupItems.map((item) => {
+                    const ps = priceStatusMap.get(item.id)
+                    return (
+                      <SortableItemCard
+                        key={item.id}
+                        item={item}
+                        isDraggable={false}
+                        shoppingMode={shoppingMode}
+                        isCompleted={!!list.isCompleted}
+                        categories={categories}
+                        stores={stores}
+                        priceStatus={ps?.status}
+                        betterStoreNames={ps?.betterStoreNames}
+                        savings={ps?.savings}
+                        onToggle={toggleItem}
+                        onEdit={setEditingItem}
+                        onDelete={deleteItem}
+                      />
+                    )
+                  })}
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          // Flat list with DnD support
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={filtered.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+              {filtered.map((item) => {
+                const ps = priceStatusMap.get(item.id)
+                return (
+                  <SortableItemCard
+                    key={item.id}
+                    item={item}
+                    isDraggable={sortBy === 'manual' && !shoppingMode && !list.isCompleted}
+                    shoppingMode={shoppingMode}
+                    isCompleted={!!list.isCompleted}
+                    categories={categories}
+                    stores={stores}
+                    priceStatus={ps?.status}
+                    betterStoreNames={ps?.betterStoreNames}
+                    savings={ps?.savings}
+                    onToggle={toggleItem}
+                    onEdit={setEditingItem}
+                    onDelete={deleteItem}
+                  />
+                )
+              })}
+            </SortableContext>
+          </DndContext>
+        )}
       </div>
 
-      {/* Mobile spacer — keeps last item above the FAB zone */}
+      {/* Mobile spacer */}
       {!list.isCompleted && !shoppingMode && (
         <div className="h-24 md:hidden" aria-hidden="true" />
       )}
 
-      {/* Add item form (FAB + mobile dialog + desktop inline) */}
+      {/* Add item form */}
       {!list.isCompleted && !shoppingMode && (
-        <AddItemForm listId={listId} categories={categories} />
+        <AddItemForm listId={listId} categories={categories} stores={stores} />
       )}
 
       {/* Edit item dialog */}
       <EditItemDialog
         item={editingItem}
         categories={categories}
+        stores={stores}
         onClose={() => setEditingItem(null)}
       />
 
