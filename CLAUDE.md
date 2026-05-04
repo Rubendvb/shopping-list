@@ -75,17 +75,18 @@ All pages call `useMounted()` and return `null` before mount. This prevents loca
 
 Single store with `persist` middleware writing to localStorage key `"listafacil-storage"`. SSR-safe: storage returns no-ops when `typeof window === "undefined"`.
 
-State: `lists`, `items`, `categories`, `history`, `stores`, `priceHistory`
-Actions: `addList`, `updateList`, `deleteList`, `completeList`, `duplicateList`, `addItem`, `updateItem`, `deleteItem`, `reorderItems`, `addCategory`, `deleteCategory`, `addStore`, `deleteStore`, `importData`
+State: `lists`, `items`, `categories`, `history`, `stores`, `priceHistory`, `productPrices`
+Actions: `addList`, `updateList`, `deleteList`, `completeList`, `duplicateList`, `addItem`, `updateItem`, `deleteItem`, `reorderItems`, `addCategory`, `deleteCategory`, `addStore`, `deleteStore`, `updateProductPrice`, `importData`
 
 - `completeList(id)` builds a `PurchaseHistory` snapshot from current items and marks the list as completed.
 - `duplicateList(id)` copies the list and all its items (with `isPurchased: false`), returns the new list ID.
 - `deleteCategory(id)` also clears `categoryId` on all items that referenced the deleted category.
-- `deleteStore(id)` also clears `storeId` on all items that referenced the deleted store.
+- `deleteStore(id)` also clears `storeId` on all items that referenced the deleted store and removes its entries from `productPrices`.
 - `reorderItems(listId, orderedIds)` updates the `order` field of all items in the list according to the new ID array.
+- `updateProductPrice(productKey, storeId, price)` does a global price update in `productPrices` without mutating items directly.
 - `importData(data)` replaces the entire store state (used by the backup restore flow).
-- `addItem` auto-assigns `order = max(existing orders) + 1` so new items always land at the bottom in manual sort. Returns `false` if an item with the exact same name already exists in the list.
-- `updateItem` returns `false` if the new name duplicates an existing item. It also automatically syncs the product name in `priceHistory` for global name corrections.
+- `addItem` auto-assigns `order = max(existing orders) + 1` so new items always land at the bottom in manual sort. Returns `false` if an item with the exact same name already exists in the list. It also upserts the price into `productPrices`.
+- `updateItem` returns `false` if the new name duplicates an existing item. It automatically syncs the product name in `priceHistory` and `productPrices` for global name corrections, and upserts the new price.
 
 ### Money
 
@@ -137,18 +138,20 @@ Note: `cat-mercado` ID is kept for backward compatibility — it was renamed fro
 
 ### Price Comparator & Stores
 
-The app includes a price comparator that tracks item prices across different stores.
-- Store state: `stores` contains default and custom stores. `priceHistory` tracks `{ itemName, storeId, price, date }`.
-- Duplicate validation: `addItem` / `updateItem` strictly prevent adding items with the exact same name in a single list, ensuring comparator logic reliably matches items by name.
-- Price badges: In `list-detail-client.tsx`, items display badges indicating if their price is the "Best price" among known stores, or if a cheaper price was found elsewhere.
-- Ties handling: If multiple stores share the lowest historical price, the badge will list all of them joined by comma (e.g., "Assaí, Carrefour").
+The app includes a globally decoupled price comparator that tracks item prices across different stores.
+- Store state: `stores` contains default and custom stores. `productPrices` tracks `{ productKey, productName, storeId, price, updatedAt }`. `priceHistory` serves as a historical log.
+- Duplicate validation: `addItem` / `updateItem` strictly prevent adding items with the exact same name in a single list.
+- Price badges: In `list-detail-client.tsx`, items display badges: green for "Best price", outline for "Tie", and amber ("↓ Loja · -R$ X,XX") showing where to save and how much.
+- Suggestions: When adding an item, a `<SuggestionHint>` appears with the minimum and average prices (if different), allowing 1-click apply of store and price.
+- Ties handling: If multiple stores share the lowest price, the badge will list all of them joined by comma.
 
 ### Store versioning and migration
 
-The store uses `version: 4` in the persist config. The `migrate` function runs automatically on version mismatch:
+The store uses `version: 5` in the persist config. The `migrate` function runs automatically on version mismatch:
 - v0 → v1: renames "Mercado" → "Mercearia", inserts `cat-congelados` and `cat-utilidades`.
-- v1 → v2: assigns sequential `order` values to items that lack the field (by list, preserving array position).
+- v1 → v2: assigns sequential `order` values to items that lack the field.
 - v2 → v3: initializes `stores` with default stores and creates an empty array for `priceHistory`.
 - v3 → v4: inserts any new default stores that might be missing in the existing state.
+- v4 → v5: initializes an empty `productPrices` array for the global comparator.
 
 When adding future breaking changes, bump the version and extend `migrate` with a `fromVersion < N` block.

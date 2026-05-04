@@ -3,7 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 import { DEFAULT_CATEGORIES } from '@/lib/categories'
 import { DEFAULT_STORES } from '@/lib/stores'
 import { calcEstimated, calcActual } from '@/lib/utils'
-import type { List, Item, Category, Store, PriceRecord, PurchaseHistory, Priority, Unit } from '@/types'
+import type { List, Item, Category, Store, PriceRecord, ProductPrice, PurchaseHistory, Priority, Unit } from '@/types'
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -15,6 +15,22 @@ function now(): string {
   return new Date().toISOString()
 }
 
+function upsertProductPrice(
+  current: ProductPrice[],
+  productName: string,
+  storeId: string,
+  price: number,
+  t: string
+): ProductPrice[] {
+  const productKey = productName.toLowerCase().trim()
+  const idx = current.findIndex((p) => p.productKey === productKey && p.storeId === storeId)
+  const entry: ProductPrice = { productKey, productName, storeId, price, updatedAt: t }
+  if (idx === -1) return [...current, entry]
+  const next = [...current]
+  next[idx] = entry
+  return next
+}
+
 // ─── state & actions types ───────────────────────────────────────────────────
 
 interface AppState {
@@ -24,6 +40,8 @@ interface AppState {
   history: PurchaseHistory[]
   stores: Store[]
   priceHistory: PriceRecord[]
+  /** Current price per (productKey × storeId) — upserted on every add/update */
+  productPrices: ProductPrice[]
 }
 
 interface AddListInput {
@@ -62,6 +80,16 @@ interface AppActions {
   updateItem: (id: string, data: Partial<Omit<Item, 'id' | 'listId' | 'createdAt'>>) => boolean
   deleteItem: (id: string) => void
 
+  // Price comparator
+  /** Returns the cheapest ProductPrice entry for a given normalized product key, or null. */
+  getProductBestPrice: (productKey: string) => ProductPrice | null
+  /**
+   * Updates the price of an existing (productKey × storeId) entry in the global price table.
+   * Does NOT mutate any item. Propagates to all list comparisons via Zustand reactivity.
+   * No-op if the entry doesn't exist yet.
+   */
+  updateProductPrice: (productKey: string, storeId: string, priceCents: number) => void
+
   // Categories
   addCategory: (data: { name: string; icon?: string; color?: string }) => void
   deleteCategory: (id: string) => void
@@ -81,6 +109,7 @@ interface AppActions {
     history: PurchaseHistory[]
     stores?: Store[]
     priceHistory?: PriceRecord[]
+    productPrices?: ProductPrice[]
   }) => void
 }
 
@@ -95,6 +124,7 @@ export const useAppStore = create<AppState & AppActions>()(
       history: [],
       stores: DEFAULT_STORES,
       priceHistory: [],
+      productPrices: [],
 
       // ── Lists ────────────────────────────────────────────────────────────
 
@@ -269,6 +299,10 @@ export const useAppStore = create<AppState & AppActions>()(
         set((s) => ({
           items: [...s.items, item],
           priceHistory: priceRecord ? [priceRecord, ...s.priceHistory] : s.priceHistory,
+          productPrices:
+            storeId && priceCents !== undefined
+              ? upsertProductPrice(s.productPrices, name, storeId, priceCents, t)
+              : s.productPrices,
         }))
         return true
       },
@@ -325,6 +359,7 @@ export const useAppStore = create<AppState & AppActions>()(
             }
           : null
 
+        const updateTs = now()
         set((s) => {
           // When name is corrected, rename all matching history records atomically
           let newPriceHistory = nameChanged
@@ -337,6 +372,25 @@ export const useAppStore = create<AppState & AppActions>()(
 
           if (priceRecord) newPriceHistory = [priceRecord, ...newPriceHistory]
 
+          // Sync productPrices: rename on key change, then upsert current price
+          let newProductPrices = nameChanged
+            ? s.productPrices.map((p) =>
+                p.productKey === oldProductKey
+                  ? { ...p, productName: newName, productKey: newProductKey }
+                  : p
+              )
+            : s.productPrices
+
+          if (shouldRecord) {
+            newProductPrices = upsertProductPrice(
+              newProductPrices,
+              newName,
+              newStoreId!,
+              newEstimatedPrice!,
+              updateTs
+            )
+          }
+
           return {
             items: s.items.map((i) =>
               i.id !== id
@@ -346,10 +400,11 @@ export const useAppStore = create<AppState & AppActions>()(
                     ...data,
                     estimatedPrice: newEstimatedPrice,
                     actualPrice: newActualPrice,
-                    updatedAt: now(),
+                    updatedAt: updateTs,
                   }
             ),
             priceHistory: newPriceHistory,
+            productPrices: newProductPrices,
           }
         })
         return true
@@ -398,10 +453,32 @@ export const useAppStore = create<AppState & AppActions>()(
         set((s) => ({
           stores: s.stores.filter((st) => st.id !== id || st.isDefault),
           items: s.items.map((i) => (i.storeId === id ? { ...i, storeId: undefined } : i)),
+          productPrices: s.productPrices.filter((p) => p.storeId !== id),
         }))
       },
 
-      importData: ({ lists, items, categories, history, stores, priceHistory }) => {
+      getProductBestPrice: (productKey) => {
+        const key = productKey.toLowerCase().trim()
+        const matches = get().productPrices.filter((p) => p.productKey === key)
+        if (matches.length === 0) return null
+        return matches.reduce((best, p) => (p.price < best.price ? p : best))
+      },
+
+      updateProductPrice: (productKey, storeId, priceCents) => {
+        const key = productKey.toLowerCase().trim()
+        const t = now()
+        set((s) => {
+          const idx = s.productPrices.findIndex(
+            (p) => p.productKey === key && p.storeId === storeId
+          )
+          if (idx === -1) return s
+          const next = [...s.productPrices]
+          next[idx] = { ...next[idx], price: priceCents, updatedAt: t }
+          return { productPrices: next }
+        })
+      },
+
+      importData: ({ lists, items, categories, history, stores, priceHistory, productPrices }) => {
         set({
           lists,
           items,
@@ -409,12 +486,13 @@ export const useAppStore = create<AppState & AppActions>()(
           history,
           stores: stores ?? DEFAULT_STORES,
           priceHistory: priceHistory ?? [],
+          productPrices: productPrices ?? [],
         })
       },
     }),
     {
       name: 'listafacil-storage',
-      version: 4,
+      version: 5,
       migrate: (persisted, fromVersion) => {
         const state = persisted as AppState & AppActions
         if (fromVersion < 1) {
@@ -455,6 +533,23 @@ export const useAppStore = create<AppState & AppActions>()(
               if (!existingIds.has(ds.id)) state.stores.push(ds)
             })
           }
+        }
+        if (fromVersion < 5) {
+          // Backfill productPrices from priceHistory: latest price per (productKey, storeId)
+          const byKey = new Map<string, ProductPrice>()
+          const sorted = [...(state.priceHistory ?? [])].sort((a, b) =>
+            a.recordedAt.localeCompare(b.recordedAt)
+          )
+          for (const r of sorted) {
+            byKey.set(`${r.productKey}::${r.storeId}`, {
+              productKey: r.productKey,
+              productName: r.productName,
+              storeId: r.storeId,
+              price: r.price,
+              updatedAt: r.recordedAt,
+            })
+          }
+          state.productPrices = [...byKey.values()]
         }
         return state
       },

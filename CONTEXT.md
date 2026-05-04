@@ -9,7 +9,8 @@ Aplicativo web de gerenciamento de listas de compras. Single-user, sem autentica
 - CRUD de listas de compras com orçamento
 - CRUD de itens por lista (nome, quantidade, unidade, preço estimado, preço real, categoria, loja, prioridade, notas)
   - **Bloqueio de duplicados**: Não permite itens com o mesmo nome na mesma lista
-  - **Comparador de preços integrado**: Exibe badges de "Melhor preço" ou informa onde o produto é mais barato (incluindo empates)
+  - **Comparador Global de Preços**: Base de dados de preços desacoplada. Exibe alertas de onde o produto é mais barato ou se o atual é o "Melhor preço" (suportando empates)
+  - **Sugestão Inteligente**: Ao adicionar itens, oferece preço mínimo e médio com preenchimento em 1 clique
 - Edição de itens via dialog com todos os campos (incluindo preço real e notas)
 - Marcar itens como comprados
 - Filtro por categoria, status (comprado/pendente) e busca por nome
@@ -129,7 +130,7 @@ shopping-list/
 
 ## Store Zustand (`use-app-store.ts`)
 
-Chave localStorage: `"listafacil-storage"` · Versão atual: `4`
+Chave localStorage: `"listafacil-storage"` · Versão atual: `5`
 
 **Estado:**
 
@@ -140,6 +141,7 @@ categories: Category[]
 history: PurchaseHistory[]
 stores: Store[]
 priceHistory: PriceRecord[]
+productPrices: ProductPrice[]
 ```
 
 **Actions:**
@@ -158,7 +160,8 @@ priceHistory: PriceRecord[]
 | `addCategory({ name, icon?, color? })`        | Cria categoria personalizada                                      |
 | `deleteCategory(id)`                          | Remove categoria + limpa `categoryId` nos itens que a referenciavam |
 | `addStore({ name, icon?, color? })`           | Cria loja personalizada                                           |
-| `deleteStore(id)`                             | Remove loja + limpa `storeId` nos itens que a referenciavam       |
+| `deleteStore(id)`                             | Remove loja, limpa `storeId` nos itens e remove seus `productPrices` |
+| `updateProductPrice(key, storeId, price)`     | Faz upsert global de preço num produto sem alterar os itens         |
 | `importData({ ... })`                         | Substitui todo o estado (fluxo de restore)                  |
 
 **Migração:**
@@ -167,6 +170,7 @@ priceHistory: PriceRecord[]
 - v1 → v2: atribui `order` sequencial a itens sem o campo (por lista, preservando posição no array)
 - v2 → v3: inicializa `stores` com lojas padrão e cria array vazio para `priceHistory`
 - v3 → v4: insere qualquer nova loja padrão que possa estar faltando no estado existente
+- v4 → v5: inicializa array vazio de `productPrices` para a base global do comparador
 
 Para mudanças futuras: incrementar `version` e adicionar bloco `fromVersion < N` em `migrate`.
 

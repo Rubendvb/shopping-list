@@ -20,7 +20,8 @@ Gerenciador de listas de compras para uso pessoal. Roda 100% no navegador — se
 - Exportar e importar dados como JSON (backup entre dispositivos)
 - Notificações de feedback (Toasts) e diálogos de confirmação para ações importantes
 - Categorias e Lojas (padrão + personalizadas)
-- Comparador de Preços (histórico de preços registrados por produto e loja)
+- Comparador Global de Preços (base de dados de preços desacoplada, alertas inteligentes de economia e histórico)
+- Sugestões Inteligentes: preenchimento de preço e loja em 1 clique ao adicionar itens
 - Telas de carregamento suaves (Skeleton Loaders) e alta performance sem re-renders desnecessários
 - Dark mode
 - Layout responsivo (sidebar + hamburger mobile)

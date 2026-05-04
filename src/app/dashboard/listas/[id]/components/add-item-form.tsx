@@ -1,6 +1,6 @@
 'use client'
 import { useState, useMemo } from 'react'
-import { Plus, TrendingDown } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,8 +16,12 @@ import {
 } from '@/components/ui/select'
 import { UNITS } from '@/lib/units'
 import { useAppStore } from '@/store/use-app-store'
+import { useShallow } from 'zustand/react/shallow'
 import { toast } from '@/hooks/use-toast'
-import { formatCurrency } from '@/lib/utils'
+import { getPriceAlert } from '@/lib/price-alert'
+import { PriceAlertBanner } from './price-alert-banner'
+import { SuggestionHint } from './suggestion-hint'
+import type { SuggestionData } from './suggestion-hint'
 import type { Category, Store, Priority, Unit } from '@/types'
 
 interface AddItemFormProps {
@@ -28,7 +32,7 @@ interface AddItemFormProps {
 
 export function AddItemForm({ listId, categories, stores }: AddItemFormProps) {
   const addItem = useAppStore((s) => s.addItem)
-  const priceHistory = useAppStore((s) => s.priceHistory)
+  const productPrices = useAppStore(useShallow((s) => s.productPrices))
 
   const [showAdd, setShowAdd] = useState(false)
   const [name, setName] = useState('')
@@ -39,37 +43,32 @@ export function AddItemForm({ listId, categories, stores }: AddItemFormProps) {
   const [storeId, setStoreId] = useState('')
   const [priority, setPriority] = useState<Priority>('MEDIUM')
 
-  const betterPriceInfo = useMemo(() => {
-    if (!price || !name.trim()) return null
+  const suggestion = useMemo((): SuggestionData | null => {
     const productKey = name.toLowerCase().trim()
-    const relevant = priceHistory.filter((r) => r.productKey === productKey)
-    if (!relevant.length) return null
+    if (productKey.length < 2) return null
+    const entries = productPrices.filter((p) => p.productKey === productKey)
+    if (!entries.length) return null
 
-    const byStore = new Map<string, number>()
-    for (const r of [...relevant].sort((a, b) => b.recordedAt.localeCompare(a.recordedAt))) {
-      if (!byStore.has(r.storeId)) byStore.set(r.storeId, r.price)
-    }
+    const minPrice = Math.min(...entries.map((p) => p.price))
+    const avgPrice = Math.round(entries.reduce((s, p) => s + p.price, 0) / entries.length)
+    const bestEntries = entries.filter((p) => p.price === minPrice)
+    const bestStoreNames = bestEntries
+      .map((p) => stores.find((s) => s.id === p.storeId)?.name)
+      .filter(Boolean) as string[]
 
-    let bestPrice = price
-    for (const [sid, p] of byStore) {
-      if (sid === storeId) continue
-      if (p < bestPrice) bestPrice = p
-    }
+    return { minPrice, avgPrice, bestStoreNames, bestStoreId: bestEntries[0]?.storeId ?? '' }
+  }, [name, productPrices, stores])
 
-    if (bestPrice >= price) return null
+  const priceAlert = useMemo(
+    () => (price ? getPriceAlert(name, price, storeId || undefined, productPrices, stores) : null),
+    [name, price, storeId, productPrices, stores]
+  )
 
-    const storeNames: string[] = []
-    for (const [sid, p] of byStore) {
-      if (sid === storeId) continue
-      if (p === bestPrice) {
-        const store = stores.find((s) => s.id === sid)
-        if (store) storeNames.push(store.name)
-      }
-    }
-
-    if (!storeNames.length) return null
-    return { storeNames, price: bestPrice }
-  }, [name, price, storeId, priceHistory, stores])
+  function applySuggestion() {
+    if (!suggestion) return
+    setPrice(suggestion.minPrice)
+    setStoreId(suggestion.bestStoreId)
+  }
 
   function reset() {
     setName('')
@@ -101,18 +100,6 @@ export function AddItemForm({ listId, categories, stores }: AddItemFormProps) {
     reset()
     toast('Item adicionado', 'success')
   }
-
-  const betterPriceAlert = betterPriceInfo && (
-    <div className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 px-2.5 py-2 rounded-md">
-      <TrendingDown className="h-3.5 w-3.5 shrink-0" />
-      <span>
-        Preço mais baixo: <strong>{formatCurrency(betterPriceInfo.price)}</strong>{' '}
-        {betterPriceInfo.storeNames.length === 1
-          ? `no ${betterPriceInfo.storeNames[0]}`
-          : betterPriceInfo.storeNames.join(', ')}
-      </span>
-    </div>
-  )
 
   return (
     <>
@@ -219,7 +206,12 @@ export function AddItemForm({ listId, categories, stores }: AddItemFormProps) {
               </Button>
             </div>
           </div>
-          {betterPriceAlert && <div className="mt-3">{betterPriceAlert}</div>}
+          {suggestion && !price && (
+            <div className="mt-3">
+              <SuggestionHint data={suggestion} onApply={applySuggestion} />
+            </div>
+          )}
+          {priceAlert && <div className="mt-3"><PriceAlertBanner alert={priceAlert} /></div>}
         </CardContent>
       </Card>
 
@@ -238,6 +230,9 @@ export function AddItemForm({ listId, categories, stores }: AddItemFormProps) {
                 onChange={(e) => setName(e.target.value)}
               />
             </div>
+            {suggestion && !price && (
+              <SuggestionHint data={suggestion} onApply={applySuggestion} />
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label>Quantidade</Label>
@@ -269,7 +264,7 @@ export function AddItemForm({ listId, categories, stores }: AddItemFormProps) {
               <Label>Preço estimado (R$)</Label>
               <CurrencyInput value={price} onChange={setPrice} />
             </div>
-            {betterPriceAlert}
+            <PriceAlertBanner alert={priceAlert} />
             <div className="space-y-1">
               <Label>Loja</Label>
               <Select value={storeId} onValueChange={setStoreId}>

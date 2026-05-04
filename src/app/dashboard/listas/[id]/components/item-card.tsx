@@ -24,8 +24,10 @@ interface ItemCardProps {
   isCompleted: boolean
   categories: Category[]
   stores: Store[]
-  priceStatus?: 'best' | 'better-elsewhere'
+  priceStatus?: 'best' | 'tie' | 'above'
   betterStoreNames?: string[]
+  /** cents — how much cheaper the best price is (only when status is 'above') */
+  savings?: number
   onToggle: (id: string, isPurchased: boolean) => void
   onEdit: (item: Item) => void
   onDelete: (id: string) => void
@@ -40,6 +42,7 @@ export const SortableItemCard = React.memo(function SortableItemCard({
   stores,
   priceStatus,
   betterStoreNames,
+  savings,
   onToggle,
   onEdit,
   onDelete,
@@ -145,9 +148,14 @@ export const SortableItemCard = React.memo(function SortableItemCard({
                       Melhor preço
                     </Badge>
                   )}
-                  {priceStatus === 'better-elsewhere' && betterStoreNames && betterStoreNames.length > 0 && (
+                  {priceStatus === 'tie' && (
+                    <Badge variant="outline" className="text-xs">
+                      Empate
+                    </Badge>
+                  )}
+                  {priceStatus === 'above' && betterStoreNames && betterStoreNames.length > 0 && savings !== undefined && (
                     <Badge variant="warning" className="text-xs">
-                      ↓ {betterStoreNames.join(', ')}
+                      ↓ {betterStoreNames.join(', ')} · -{formatCurrency(savings)}
                     </Badge>
                   )}
                 </>

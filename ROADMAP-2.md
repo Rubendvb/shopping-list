@@ -1,150 +1,142 @@
-## Fase 0 — Base global (nova)
+## ✅ Fase 0 — (já concluída)
 
-Implementar preços por produto/loja (desacoplado da lista)
+Base de comparação integrada
 
-Regras:
+Status:
 
-- criar estrutura `productPrices` (produto + store + preço)
-- normalizar nome (`trim + lowercase`)
-- impedir duplicado por `normalizedName + storeId`
-- manter preços em centavos
-- não depender de lista para existir
-- manter `priceHistory` como histórico (opcional/derivado)
-
-Aplicar em:
-
-- types
-- store (novo estado + actions)
-- nova tela: preços/comparador
-
-Entregáveis:
-
-- base global de preços
-- cadastro por produto + loja
-- sem duplicação por loja
+- priceHistory existente
+- comparador integrado no item
+- suporte a empate
+- lojas padrão + personalizadas
 
 ---
 
-## Fase 1 — Integração com lista
+## ✅ Fase 1 — (já concluída)
 
-Usar base global ao adicionar item
+Validação e consistência
 
-Regras:
+Status:
 
-- ao digitar produto:
-  - verificar duplicado na lista
-  - buscar melhor preço global
-
-- exibir avisos:
-  - “já existe na lista”
-  - “mais barato em X loja”
-
-- não bloquear fluxo
-
-Aplicar em:
-
-- add-item-form
-- validações
-
-Entregáveis:
-
-- alerta de duplicado
-- alerta de melhor preço
+- bloqueio de duplicados por nome
+- normalização de nome aplicada
+- sincronização com priceHistory no updateItem
 
 ---
 
-## Fase 2 — Melhor preço (refatorado)
+## ✅ Fase 2 — (já concluída)
 
-Calcular melhor preço usando base global
+Refinamento da base — modelo de preços desacoplado da lista
 
-Regras:
+Status:
 
-- usar `productPrices` (não items da lista)
-- suportar empate
-- ignorar ordem de atualização
-
-Aplicar em:
-
-- helpers/comparador
-
-Entregáveis:
-
-- `getBestPrice(product)` confiável
+- `ProductPrice` type criado (`productKey`, `productName`, `storeId`, `price`, `updatedAt`)
+- `productPrices: ProductPrice[]` adicionado ao store (upsert por `productKey + storeId`)
+- `addItem` / `updateItem` fazem upsert em `productPrices` automaticamente
+- mudança de nome propaga renomeação em `productPrices` e `priceHistory` atomicamente
+- `deleteStore` limpa entradas de `productPrices` da loja removida
+- `getProductBestPrice(productKey)` retorna o `ProductPrice` mais barato ou `null`
+- `importData` aceita `productPrices` opcional
+- store bumped para `version: 5` com migração `fromVersion < 5` (inicializa array vazio)
+- `priceHistory` mantido como log histórico (não alterado)
 
 ---
 
-## Fase 3 — UI de comparação
+## ✅ Fase 3 — (já concluída)
 
-Tela dedicada de preços
+Alertas inteligentes de preço
+
+Status:
+
+- fonte trocada: `priceHistory` → `productPrices` (lookup O(n) sobre tabela pequena, sem sort/dedup)
+- 3 estados distintos: `'best'` / `'tie'` / `'above'`
+- badge verde "Melhor preço" — único mais barato
+- badge outline "Empate" — empatado com outra loja
+- badge âmbar "↓ Loja · -R$ X,XX" — mais caro, mostra onde economizar e quanto
+- prop `savings` (centavos) passada ao `item-card` e exibida via `formatCurrency`
+- UI não poluída: badge só aparece quando há pelo menos 2 lojas com preço registrado
+
+---
+
+## ✅ Fase 4 — (já concluída)
+
+Sugestão ao adicionar item
+
+Status:
+
+- `SuggestionHint` criado em `suggestion-hint.tsx` (componente leve, reutilizável)
+- `suggestion` useMemo: filtra `productPrices` por `productKey` exato (≥ 2 chars), calcula `minPrice` e `avgPrice`
+- `applySuggestion()`: preenche `price` e `storeId` com um clique em "Usar →"
+- preço médio exibido somente quando diferente do mínimo (evita redundância)
+- sugestão aparece apenas quando `price` ainda não foi preenchido (não compete com `PriceAlertBanner`)
+- desktop: sugestão abaixo do grid de campos
+- mobile: sugestão imediatamente abaixo do campo Nome
+- sem bloqueio de input, sem poluição visual
+
+---
+
+## ✅ Fase 5 — (já concluída)
+
+Atualização global de preços
+
+Status:
+
+- `updateProductPrice(productKey, storeId, priceCents)` adicionado ao store
+  - atualiza entrada existente em `productPrices` sem mudar nenhum item
+  - no-op se a entrada não existir (apenas update, não insert)
+  - propaga para todas as listas via reatividade do Zustand
+- seletor scoped em `list-detail-client.tsx`: assina apenas os `productPrices`
+  cujos `productKey` estão presentes na lista atual (evita re-render em updates de
+  produtos de outras listas)
+- `priceStatusMap` recalcula automaticamente ao receber novo `productPrices`
+- nenhum dado de item é mutado — apenas os badges são sinalizados
+- suporte a empate (`'tie'`), melhor preço (`'best'`) e acima (`'above'`) mantidos
+
+---
+
+## Fase 6 — Visão de comparação (nova tela)
 
 Regras:
 
 - listar produto → lojas → preços
-- destacar menor preço
+- destacar melhor preço
 - mostrar empate
-- permitir editar preços
+- permitir edição
 
 Aplicar em:
 
-- nova tela `/lojas` ou `/precos`
+- nova tela (ex: /precos)
 
 Entregáveis:
 
 - comparador completo
-- edição de preços
+- gestão de preços centralizada
 
 ---
 
-## Fase 4 — Alertas no item
-
-Exibir status no item da lista
+## Fase 7 — Agrupamento por loja
 
 Regras:
 
-- melhor preço → badge verde
-- mais caro → aviso
-- empate → mostrar múltiplas lojas
+- agrupar itens por melhor loja
+- não alterar lista original
 
 Aplicar em:
 
-- item-card
+- nova view
 
 Entregáveis:
 
-- badges + alertas
+- visão “onde comprar”
 
 ---
 
-## Fase 5 — Atualização global
-
-Impacto ao alterar preço
+## Fase 8 — Notificações globais
 
 Regras:
 
-- ao atualizar preço:
-  - recalcular melhor preço
-  - sinalizar itens impactados
+- ao abrir app:
+  - detectar itens mais baratos
 
-- não alterar item automaticamente
-
-Aplicar em:
-
-- store
-- comparador
-
-Entregáveis:
-
-- alerta global funcionando
-
----
-
-## Fase 6 — Notificação geral
-
-Resumo ao abrir app
-
-Regras:
-
-- detectar itens com preço melhor
 - mostrar resumo
 
 Aplicar em:
@@ -153,13 +145,31 @@ Aplicar em:
 
 Entregáveis:
 
-- “X itens mais baratos”
+- alerta global
 
 ---
 
-## Ordem atualizada
+## Fase 9 — Insights de preço
 
-0 → 1 → 2 → 3 → 4 → 5
-(depois 6+)
+Regras:
+
+- calcular:
+  - média
+  - menor histórico
+  - tendência simples
+
+Aplicar em:
+
+- estatísticas
+
+Entregáveis:
+
+- inteligência de preço
+
+---
+
+## Nova ordem recomendada
+
+2 → 5 → 3 → 4 → 6 → 7 → 8 → 9
 
 ---

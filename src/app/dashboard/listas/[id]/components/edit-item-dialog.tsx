@@ -1,6 +1,5 @@
 'use client'
 import { useState, useMemo } from 'react'
-import { TrendingDown } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,8 +14,10 @@ import {
 } from '@/components/ui/select'
 import { UNITS, normalizeUnit } from '@/lib/units'
 import { useAppStore } from '@/store/use-app-store'
+import { useShallow } from 'zustand/react/shallow'
 import { toast } from '@/hooks/use-toast'
-import { formatCurrency } from '@/lib/utils'
+import { getPriceAlert } from '@/lib/price-alert'
+import { PriceAlertBanner } from './price-alert-banner'
 import type { Item, Category, Store, Priority, Unit } from '@/types'
 
 interface EditItemDialogProps {
@@ -35,7 +36,7 @@ interface EditFormProps {
 
 function EditItemForm({ item, categories, stores, onClose }: EditFormProps) {
   const updateItem = useAppStore((s) => s.updateItem)
-  const priceHistory = useAppStore((s) => s.priceHistory)
+  const productPrices = useAppStore(useShallow((s) => s.productPrices))
 
   const [name, setName] = useState(item.name)
   const [qty, setQty] = useState(String(item.quantity))
@@ -47,37 +48,10 @@ function EditItemForm({ item, categories, stores, onClose }: EditFormProps) {
   const [priority, setPriority] = useState<Priority>(item.priority)
   const [notes, setNotes] = useState(item.notes ?? '')
 
-  const betterPriceInfo = useMemo(() => {
-    if (!price || !name.trim()) return null
-    const productKey = name.toLowerCase().trim()
-    const relevant = priceHistory.filter((r) => r.productKey === productKey)
-    if (!relevant.length) return null
-
-    const byStore = new Map<string, number>()
-    for (const r of [...relevant].sort((a, b) => b.recordedAt.localeCompare(a.recordedAt))) {
-      if (!byStore.has(r.storeId)) byStore.set(r.storeId, r.price)
-    }
-
-    let bestPrice = price
-    for (const [sid, p] of byStore) {
-      if (sid === storeId) continue
-      if (p < bestPrice) bestPrice = p
-    }
-
-    if (bestPrice >= price) return null
-
-    const storeNames: string[] = []
-    for (const [sid, p] of byStore) {
-      if (sid === storeId) continue
-      if (p === bestPrice) {
-        const store = stores.find((s) => s.id === sid)
-        if (store) storeNames.push(store.name)
-      }
-    }
-
-    if (!storeNames.length) return null
-    return { storeNames, price: bestPrice }
-  }, [name, price, storeId, priceHistory, stores])
+  const priceAlert = useMemo(
+    () => (price ? getPriceAlert(name, price, storeId || undefined, productPrices, stores) : null),
+    [name, price, storeId, productPrices, stores]
+  )
 
   function save() {
     if (!name.trim()) return
@@ -148,17 +122,6 @@ function EditItemForm({ item, categories, stores, onClose }: EditFormProps) {
           <CurrencyInput value={actualPrice} onChange={setActualPrice} />
         </div>
       </div>
-      {betterPriceInfo && (
-        <div className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 px-2.5 py-2 rounded-md">
-          <TrendingDown className="h-3.5 w-3.5 shrink-0" />
-          <span>
-            Preço mais baixo: <strong>{formatCurrency(betterPriceInfo.price)}</strong>{' '}
-            {betterPriceInfo.storeNames.length === 1
-              ? `no ${betterPriceInfo.storeNames[0]}`
-              : betterPriceInfo.storeNames.join(', ')}
-          </span>
-        </div>
-      )}
       <div className="space-y-1">
         <Label>Loja</Label>
         <Select value={storeId} onValueChange={setStoreId}>
@@ -174,6 +137,7 @@ function EditItemForm({ item, categories, stores, onClose }: EditFormProps) {
           </SelectContent>
         </Select>
       </div>
+      <PriceAlertBanner alert={priceAlert} />
       <div className="space-y-1">
         <Label>Categoria</Label>
         <Select value={category} onValueChange={setCategory}>

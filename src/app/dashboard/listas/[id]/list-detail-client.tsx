@@ -52,6 +52,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { formatCurrency, calcEstimated, calcActual } from '@/lib/utils'
+import { getPriceAlert } from '@/lib/price-alert'
 import { CurrencyInput } from '@/components/ui/currency-input'
 import { normalizeUnit, unitAbbr } from '@/lib/units'
 import { useAppStore } from '@/store/use-app-store'
@@ -73,7 +74,16 @@ export function ListDetailClient({ listId }: { listId: string }) {
   const listItems = useAppStore(useShallow((s) => s.items.filter((i) => i.listId === listId)))
   const categories = useAppStore((s) => s.categories)
   const stores = useAppStore((s) => s.stores)
-  const priceHistory = useAppStore((s) => s.priceHistory)
+
+  // Scope subscription to only product keys present in this list — avoids re-renders
+  // when a price update in another list changes a product not in this one.
+  const listProductKeys = useMemo(
+    () => new Set(listItems.map((i) => i.name.toLowerCase().trim())),
+    [listItems]
+  )
+  const productPrices = useAppStore(
+    useShallow((s) => s.productPrices.filter((p) => listProductKeys.has(p.productKey)))
+  )
   const storeUpdateItem = useAppStore((s) => s.updateItem)
   const storeDeleteItem = useAppStore((s) => s.deleteItem)
   const storeCompleteList = useAppStore((s) => s.completeList)
@@ -134,47 +144,21 @@ export function ListDetailClient({ listId }: { listId: string }) {
       })
   }, [listItems, search, filterCategory, filterStatus, sortBy, categories, stores])
 
-  // Compute price status per item for badges
+  // Compute price status per item using global productPrices table
   const priceStatusMap = useMemo(() => {
-    const map = new Map<string, { status: 'best' | 'better-elsewhere'; betterStoreNames?: string[] }>()
+    const map = new Map<string, { status: 'best' | 'tie' | 'above'; betterStoreNames?: string[]; savings?: number }>()
     for (const item of listItems) {
       if (!item.estimatedPrice || !item.storeId) continue
-      const productKey = item.name.toLowerCase().trim()
-      const relevant = priceHistory.filter((r) => r.productKey === productKey)
-      if (!relevant.length) continue
-
-      const byStore = new Map<string, number>()
-      for (const r of [...relevant].sort((a, b) => b.recordedAt.localeCompare(a.recordedAt))) {
-        if (!byStore.has(r.storeId)) byStore.set(r.storeId, r.price)
-      }
-
-      let betterPrice = item.estimatedPrice
-      for (const [sid, p] of byStore) {
-        if (sid === item.storeId) continue
-        if (p < betterPrice) betterPrice = p
-      }
-
-      if (betterPrice < item.estimatedPrice) {
-        const betterStoreNames: string[] = []
-        for (const [sid, p] of byStore) {
-          if (sid === item.storeId) continue
-          if (p === betterPrice) {
-            const name = stores.find((s) => s.id === sid)?.name
-            if (name) betterStoreNames.push(name)
-          }
-        }
-        if (betterStoreNames.length > 0) {
-          map.set(item.id, { status: 'better-elsewhere', betterStoreNames })
-        }
-      } else if (byStore.size > 1) {
-        const minPrice = Math.min(...byStore.values())
-        if (item.estimatedPrice <= minPrice) {
-          map.set(item.id, { status: 'best' })
-        }
+      const alert = getPriceAlert(item.name, item.estimatedPrice, item.storeId, productPrices, stores)
+      if (!alert) continue
+      if (alert.status === 'best' || alert.status === 'tie') {
+        map.set(item.id, { status: alert.status })
+      } else {
+        map.set(item.id, { status: 'above', betterStoreNames: alert.betterStoreNames, savings: alert.savings })
       }
     }
     return map
-  }, [listItems, priceHistory, stores])
+  }, [listItems, productPrices, stores])
 
   // Groups for "por loja" view
   const storeGroups = useMemo(() => {
@@ -577,6 +561,7 @@ export function ListDetailClient({ listId }: { listId: string }) {
                         stores={stores}
                         priceStatus={ps?.status}
                         betterStoreNames={ps?.betterStoreNames}
+                        savings={ps?.savings}
                         onToggle={toggleItem}
                         onEdit={setEditingItem}
                         onDelete={deleteItem}
@@ -604,6 +589,7 @@ export function ListDetailClient({ listId }: { listId: string }) {
                     stores={stores}
                     priceStatus={ps?.status}
                     betterStoreNames={ps?.betterStoreNames}
+                    savings={ps?.savings}
                     onToggle={toggleItem}
                     onEdit={setEditingItem}
                     onDelete={deleteItem}

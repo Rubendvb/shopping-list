@@ -29,6 +29,18 @@ export interface PriceRecord {
   recordedAt: string
 }
 
+/** Current best-known price per product+store — upserted, not appended */
+export interface ProductPrice {
+  /** normalized (toLowerCase().trim()) */
+  productKey: string
+  /** last-used display name for the product */
+  productName: string
+  storeId: string
+  /** cents */
+  price: number
+  updatedAt: string
+}
+
 export interface List {
   id: string
   name: string
