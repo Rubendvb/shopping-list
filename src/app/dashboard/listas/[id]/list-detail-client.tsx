@@ -33,10 +33,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -53,17 +51,19 @@ import {
 } from '@/components/ui/select'
 import { formatCurrency, calcEstimated, calcActual } from '@/lib/utils'
 import { getPriceAlert } from '@/lib/price-alert'
-import { CurrencyInput } from '@/components/ui/currency-input'
 import { normalizeUnit, unitAbbr } from '@/lib/units'
 import { useAppStore } from '@/store/use-app-store'
 import { useMounted } from '@/hooks/use-mounted'
 import { toast } from '@/hooks/use-toast'
+import { useListFilters } from '@/hooks/use-list-filters'
+import type { SortMode, StatusFilter } from '@/hooks/use-list-filters'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { Item } from '@/types'
 import { BudgetCard } from './components/budget-card'
 import { SortableItemCard, priorityOrder } from './components/item-card'
 import { EditItemDialog } from './components/edit-item-dialog'
+import { EditListDialog } from './components/edit-list-dialog'
 import { AddItemForm } from './components/add-item-form'
 
 export function ListDetailClient({ listId }: { listId: string }) {
@@ -75,8 +75,7 @@ export function ListDetailClient({ listId }: { listId: string }) {
   const categories = useAppStore((s) => s.categories)
   const stores = useAppStore((s) => s.stores)
 
-  // Scope subscription to only product keys present in this list — avoids re-renders
-  // when a price update in another list changes a product not in this one.
+  // Scope subscription to only product keys present in this list
   const listProductKeys = useMemo(
     () => new Set(listItems.map((i) => i.name.toLowerCase().trim())),
     [listItems]
@@ -87,22 +86,18 @@ export function ListDetailClient({ listId }: { listId: string }) {
   const storeUpdateItem = useAppStore((s) => s.updateItem)
   const storeDeleteItem = useAppStore((s) => s.deleteItem)
   const storeCompleteList = useAppStore((s) => s.completeList)
-  const storeUpdateList = useAppStore((s) => s.updateList)
   const storeDuplicateList = useAppStore((s) => s.duplicateList)
   const storeReorderItems = useAppStore((s) => s.reorderItems)
 
   const [search, setSearch] = useState('')
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [filterCategory, setFilterCategory] = useState('all')
-  const [filterStatus, setFilterStatus] = useState('all')
-  const [sortBy, setSortBy] = useState('priority')
+  const [filterStatus, setFilterStatus] = useState<StatusFilter>('all')
+  const [sortBy, setSortBy] = useState<SortMode>('priority')
 
   const [shoppingMode, setShoppingMode] = useState(false)
   const [confirmCompleteOpen, setConfirmCompleteOpen] = useState(false)
   const [editListOpen, setEditListOpen] = useState(false)
-  const [editListName, setEditListName] = useState('')
-  const [editListDescription, setEditListDescription] = useState('')
-  const [editListBudget, setEditListBudget] = useState<number | undefined>(undefined)
   const [editingItem, setEditingItem] = useState<Item | null>(null)
 
   const sensors = useSensors(
@@ -110,39 +105,15 @@ export function ListDetailClient({ listId }: { listId: string }) {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
-  const filtered = useMemo(() => {
-    return listItems
-      .filter((item) => {
-        if (search && !item.name.toLowerCase().includes(search.toLowerCase())) return false
-        if (filterCategory !== 'all' && item.categoryId !== filterCategory) return false
-        if (filterStatus === 'purchased' && !item.isPurchased) return false
-        if (filterStatus === 'pending' && item.isPurchased) return false
-        return true
-      })
-      .sort((a, b) => {
-        const orderTie = (a.order ?? Infinity) - (b.order ?? Infinity)
-        if (sortBy === 'manual') {
-          if (a.isPurchased !== b.isPurchased) return a.isPurchased ? 1 : -1
-          return orderTie
-        }
-        if (sortBy === 'priority') {
-          if (a.isPurchased !== b.isPurchased) return a.isPurchased ? 1 : -1
-          return priorityOrder[a.priority] - priorityOrder[b.priority] || orderTie
-        }
-        if (sortBy === 'store') {
-          if (a.isPurchased !== b.isPurchased) return a.isPurchased ? 1 : -1
-          const storeA = stores.find((s) => s.id === a.storeId)?.name ?? '￿'
-          const storeB = stores.find((s) => s.id === b.storeId)?.name ?? '￿'
-          return storeA.localeCompare(storeB) || a.name.localeCompare(b.name)
-        }
-        if (a.isPurchased !== b.isPurchased) return a.isPurchased ? 1 : -1
-        const catA = categories.find((c) => c.id === a.categoryId)?.name ?? ''
-        const catB = categories.find((c) => c.id === b.categoryId)?.name ?? ''
-        if (sortBy === 'category') return catA.localeCompare(catB) || orderTie
-        if (sortBy === 'name') return a.name.localeCompare(b.name) || orderTie
-        return orderTie
-      })
-  }, [listItems, search, filterCategory, filterStatus, sortBy, categories, stores])
+  const { filtered, storeGroups } = useListFilters({
+    items: listItems,
+    categories,
+    stores,
+    search,
+    filterCategory,
+    filterStatus,
+    sortBy,
+  })
 
   // Compute price status per item using global productPrices table
   const priceStatusMap = useMemo(() => {
@@ -159,24 +130,6 @@ export function ListDetailClient({ listId }: { listId: string }) {
     }
     return map
   }, [listItems, productPrices, stores])
-
-  // Groups for "por loja" view
-  const storeGroups = useMemo(() => {
-    if (sortBy !== 'store') return null
-    const groups = new Map<string | undefined, Item[]>()
-    for (const item of filtered) {
-      const key = item.storeId
-      if (!groups.has(key)) groups.set(key, [])
-      groups.get(key)!.push(item)
-    }
-    return [...groups.entries()].sort(([a], [b]) => {
-      if (!a) return 1
-      if (!b) return -1
-      const nameA = stores.find((s) => s.id === a)?.name ?? ''
-      const nameB = stores.find((s) => s.id === b)?.name ?? ''
-      return nameA.localeCompare(nameB)
-    })
-  }, [filtered, sortBy, stores])
 
   if (!mounted) return (
     <div className="space-y-6 pb-6">
@@ -243,25 +196,6 @@ export function ListDetailClient({ listId }: { listId: string }) {
     const newId = storeDuplicateList(listId)
     toast('Lista duplicada', 'success')
     router.push(`/dashboard/listas/${newId}`)
-  }
-
-  function openEditList() {
-    if (!list) return
-    setEditListName(list.name)
-    setEditListDescription(list.description ?? '')
-    setEditListBudget(list.budget)
-    setEditListOpen(true)
-  }
-
-  function saveEditList() {
-    if (!editListName.trim()) return
-    storeUpdateList(listId, {
-      name: editListName.trim(),
-      description: editListDescription.trim() || undefined,
-      budget: editListBudget !== undefined ? editListBudget / 100 : null,
-    })
-    setEditListOpen(false)
-    toast('Lista atualizada', 'success')
   }
 
   function handleDragEnd(event: DragEndEvent) {
@@ -386,7 +320,7 @@ export function ListDetailClient({ listId }: { listId: string }) {
             <>
               <div className="hidden md:flex items-center gap-1.5">
                 {!list.isCompleted && (
-                  <Button variant="ghost" size="icon" onClick={openEditList} aria-label="Editar lista">
+                  <Button variant="ghost" size="icon" onClick={() => setEditListOpen(true)} aria-label="Editar lista">
                     <Pencil className="h-4 w-4" />
                   </Button>
                 )}
@@ -405,7 +339,7 @@ export function ListDetailClient({ listId }: { listId: string }) {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   {!list.isCompleted && (
-                    <DropdownMenuItem onClick={openEditList}>
+                    <DropdownMenuItem onClick={() => setEditListOpen(true)}>
                       <Pencil className="h-4 w-4" />
                       Editar lista
                     </DropdownMenuItem>
@@ -496,7 +430,7 @@ export function ListDetailClient({ listId }: { listId: string }) {
               ))}
             </SelectContent>
           </Select>
-          <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as StatusFilter)}>
             <SelectTrigger className="w-36">
               <SelectValue />
             </SelectTrigger>
@@ -506,7 +440,7 @@ export function ListDetailClient({ listId }: { listId: string }) {
               <SelectItem value="purchased">Comprados</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={sortBy} onValueChange={setSortBy}>
+          <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortMode)}>
             <SelectTrigger className="w-36">
               <SlidersHorizontal className="h-3 w-3 mr-1" />
               <SelectValue />
@@ -533,7 +467,6 @@ export function ListDetailClient({ listId }: { listId: string }) {
         )}
 
         {storeGroups ? (
-          // Store-grouped view
           <div className="space-y-5">
             {storeGroups.map(([gStoreId, groupItems]) => {
               const store = stores.find((s) => s.id === gStoreId)
@@ -573,7 +506,6 @@ export function ListDetailClient({ listId }: { listId: string }) {
             })}
           </div>
         ) : (
-          // Flat list with DnD support
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={filtered.map((i) => i.id)} strategy={verticalListSortingStrategy}>
               {filtered.map((item) => {
@@ -619,6 +551,13 @@ export function ListDetailClient({ listId }: { listId: string }) {
         onClose={() => setEditingItem(null)}
       />
 
+      {/* Edit list dialog */}
+      <EditListDialog
+        list={list}
+        open={editListOpen}
+        onOpenChange={setEditListOpen}
+      />
+
       {/* Complete list confirmation */}
       <ConfirmDialog
         open={confirmCompleteOpen}
@@ -633,46 +572,6 @@ export function ListDetailClient({ listId }: { listId: string }) {
         variant={purchased === 0 ? 'destructive' : 'default'}
         onConfirm={executeCompleteList}
       />
-
-      {/* Edit list dialog */}
-      <Dialog open={editListOpen} onOpenChange={setEditListOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Editar lista</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 mt-2">
-            <div className="space-y-1">
-              <Label>Nome *</Label>
-              <Input
-                autoFocus
-                value={editListName}
-                onChange={(e) => setEditListName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && saveEditList()}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Descrição</Label>
-              <Input
-                placeholder="Opcional"
-                value={editListDescription}
-                onChange={(e) => setEditListDescription(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Orçamento (R$)</Label>
-              <CurrencyInput value={editListBudget} onChange={setEditListBudget} />
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => setEditListOpen(false)}>
-                Cancelar
-              </Button>
-              <Button className="flex-1" onClick={saveEditList} disabled={!editListName.trim()}>
-                Salvar
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
