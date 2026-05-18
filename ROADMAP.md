@@ -228,11 +228,11 @@ Melhorias incrementais ou opcionais que agregam valor sem urgência.
 
 ---
 
-### 21. Busca global
+### ✅ 21. Busca global
 
 **Descrição:** Campo de busca que filtra itens em todas as listas ativas simultaneamente, sem precisar entrar em cada lista.
 
-**Implementação:** Nova rota `/dashboard/busca` ou modal de busca global acionado por atalho. Retorna itens agrupados por lista com link direto para cada um.
+**Implementação:** Modal de busca global (`GlobalSearch`) acionado por `Cmd+K` / `Ctrl+K` ou pelo botão "Buscar" na sidebar. Monta em `dashboard/layout.tsx`. Resultados agrupados por lista com link direto para cada uma. Mini-store `useGlobalSearch` (Zustand) para estado de abertura compartilhado entre o atalho e o botão da sidebar.
 
 ---
 
@@ -242,7 +242,7 @@ Melhorias internas sem impacto visual direto, mas que facilitam manutenção e r
 
 ---
 
-### T1. Fatiamento de `list-detail-client.tsx`
+### ✅ T1. Fatiamento de `list-detail-client.tsx`
 
 O arquivo tem 718 linhas com 4 responsabilidades distintas. Extrair:
 - `<BudgetCard list={list} items={listItems} />`
@@ -252,7 +252,7 @@ O arquivo tem 718 linhas com 4 responsabilidades distintas. Extrair:
 
 ---
 
-### T2. Funções utilitárias para cálculos duplicados
+### ✅ T2. Funções utilitárias para cálculos duplicados
 
 O cálculo `items.reduce((s, i) => s + (i.estimatedPrice ?? 0) * i.quantity, 0)` aparece em 3 arquivos diferentes. Centralizar em `src/lib/utils.ts`:
 ```ts
@@ -262,13 +262,13 @@ export function calcActual(items: Pick<Item, 'actualPrice' | 'estimatedPrice' | 
 
 ---
 
-### T3. Hook `useStatistics()`
+### ✅ T3. Hook `useStatistics()`
 
 Toda a lógica de computação de `estatisticas/page.tsx` (loops, maps, agregações) deveria estar em `src/hooks/use-statistics.ts`, deixando o componente responsável apenas por renderizar os dados prontos.
 
 ---
 
-### T4. Seletores de store com `useShallow`
+### ✅ T4. Seletores de store com `useShallow`
 
 Seletores que retornam arrays derivados (`.filter(...)`, `.map(...)`) criam nova referência a cada render, causando re-renders desnecessários. Usar `useShallow` do Zustand:
 ```ts
@@ -278,7 +278,7 @@ const listItems = useAppStore(useShallow(s => s.items.filter(i => i.listId === l
 
 ---
 
-### T5. Skeleton no lugar do `return null` do `useMounted`
+### ✅ T5. Skeleton no lugar do `return null` do `useMounted`
 
 O guard `if (!mounted) return null` exibe tela em branco durante a hidratação. Retornar um skeleton com as dimensões aproximadas da página elimina o flash de conteúdo sem comprometer o guard de SSR.
 

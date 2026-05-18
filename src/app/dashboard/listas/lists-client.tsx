@@ -22,10 +22,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, calcEstimated } from '@/lib/utils'
 import { CurrencyInput } from '@/components/ui/currency-input'
 import { useAppStore } from '@/store/use-app-store'
 import { useMounted } from '@/hooks/use-mounted'
+import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from '@/hooks/use-toast'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { TEMPLATES } from '@/lib/templates'
@@ -50,7 +51,25 @@ export function ListsClient() {
 
   const selectedTemplate = TEMPLATES.find((t) => t.id === selectedTemplateId) ?? null
 
-  if (!mounted) return null
+  if (!mounted) return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <Skeleton className="h-8 w-36" />
+        <Skeleton className="h-9 w-28 rounded-md" />
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Card key={i}>
+            <CardContent className="p-4 space-y-3">
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-2 w-full rounded-full" />
+              <Skeleton className="h-3 w-1/2" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  )
 
   function resetDialog() {
     setName('')
@@ -213,7 +232,7 @@ export function ListsClient() {
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors cursor-pointer ${
               filter === f
                 ? 'bg-[var(--primary)] text-[var(--primary-foreground)]'
                 : 'bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-80'
@@ -241,10 +260,7 @@ export function ListsClient() {
             const listItems = items.filter((i) => i.listId === list.id)
             const purchased = listItems.filter((i) => i.isPurchased).length
             const total = listItems.length
-            const estimated = listItems.reduce(
-              (s, i) => s + (i.estimatedPrice ?? 0) * i.quantity,
-              0
-            )
+            const estimated = calcEstimated(listItems)
             const progress = total > 0 ? Math.round((purchased / total) * 100) : 0
 
             return (
@@ -268,14 +284,14 @@ export function ListsClient() {
                       <button
                         onClick={(e) => handleDuplicateList(list.id, e)}
                         aria-label="Duplicar lista"
-                        className="flex items-center justify-center h-10 w-10 md:h-auto md:w-auto md:p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 rounded hover:bg-[var(--secondary)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-all shrink-0"
+                        className="flex items-center justify-center h-10 w-10 md:h-auto md:w-auto md:p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 rounded hover:bg-[var(--secondary)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-all shrink-0 cursor-pointer"
                       >
                         <Copy className="h-4 w-4" />
                       </button>
                       <button
                         onClick={(e) => handleDeleteList(list.id, e)}
                         aria-label="Excluir lista"
-                        className="flex items-center justify-center h-10 w-10 md:h-auto md:w-auto md:p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 rounded hover:bg-red-100 dark:hover:bg-red-950 text-red-500 transition-all ml-1 shrink-0"
+                        className="flex items-center justify-center h-10 w-10 md:h-auto md:w-auto md:p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 rounded hover:bg-red-100 dark:hover:bg-red-950 text-red-500 transition-all ml-1 shrink-0 cursor-pointer"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>

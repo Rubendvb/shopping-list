@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { History, TrendingUp, TrendingDown, ChevronDown, CheckCircle2, XCircle } from 'lucide-react'
 import { useAppStore } from '@/store/use-app-store'
 import { useMounted } from '@/hooks/use-mounted'
+import { Skeleton } from '@/components/ui/skeleton'
 import { unitAbbr, normalizeUnit } from '@/lib/units'
 import type { ItemSummary } from '@/types'
 
@@ -50,7 +51,32 @@ export default function HistoricoPage() {
   const history = useAppStore((s) => s.history)
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
-  if (!mounted) return null
+  if (!mounted) return (
+    <div className="space-y-6">
+      <Skeleton className="h-8 w-52" />
+      <div className="space-y-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Card key={i}>
+            <CardContent className="p-4 space-y-3">
+              <div className="flex justify-between items-center">
+                <Skeleton className="h-4 w-36" />
+                <Skeleton className="h-4 w-20" />
+              </div>
+              <div className="flex gap-4">
+                <Skeleton className="h-3 w-28" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {Array.from({ length: 3 }).map((_, j) => (
+                  <Skeleton key={j} className="h-5 w-16 rounded-full" />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  )
 
   return (
     <div className="space-y-6">
@@ -80,7 +106,7 @@ export default function HistoricoPage() {
                 <CardContent className="p-4">
                   {/* Header row — always visible */}
                   <button
-                    className="w-full text-left"
+                    className="w-full text-left cursor-pointer"
                     onClick={() => setExpandedId(isExpanded ? null : h.id)}
                     aria-expanded={isExpanded}
                   >

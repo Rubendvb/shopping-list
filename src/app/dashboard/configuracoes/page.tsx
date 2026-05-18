@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { useAppStore } from '@/store/use-app-store'
 import { useMounted } from '@/hooks/use-mounted'
+import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from '@/hooks/use-toast'
 
 interface BackupFile {
@@ -13,6 +14,9 @@ interface BackupFile {
   items: unknown[]
   categories: unknown[]
   history: unknown[]
+  stores?: unknown[]
+  priceHistory?: unknown[]
+  productPrices?: unknown[]
 }
 
 function isValidBackup(data: unknown): data is BackupFile {
@@ -32,22 +36,44 @@ export default function ConfiguracoesPage() {
   const items = useAppStore((s) => s.items)
   const categories = useAppStore((s) => s.categories)
   const history = useAppStore((s) => s.history)
+  const stores = useAppStore((s) => s.stores)
+  const priceHistory = useAppStore((s) => s.priceHistory)
+  const productPrices = useAppStore((s) => s.productPrices)
   const importData = useAppStore((s) => s.importData)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [pendingImport, setPendingImport] = useState<BackupFile | null>(null)
   const [confirmImportOpen, setConfirmImportOpen] = useState(false)
 
-  if (!mounted) return null
+  if (!mounted) return (
+    <div className="space-y-6">
+      <Skeleton className="h-8 w-36" />
+      <div className="grid gap-6 md:grid-cols-2">
+        {Array.from({ length: 2 }).map((_, i) => (
+          <Card key={i}>
+            <CardContent className="p-6 space-y-4">
+              <Skeleton className="h-5 w-28" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-4/5" />
+              <Skeleton className="h-9 w-36 rounded-md" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  )
 
   function handleExport() {
     const data = {
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
       lists,
       items,
       categories,
       history,
+      stores,
+      priceHistory,
+      productPrices,
     }
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
@@ -88,6 +114,9 @@ export default function ConfiguracoesPage() {
       items: pendingImport.items as never,
       categories: pendingImport.categories as never,
       history: pendingImport.history as never,
+      stores: pendingImport.stores as never,
+      priceHistory: pendingImport.priceHistory as never,
+      productPrices: pendingImport.productPrices as never,
     })
     setPendingImport(null)
     toast('Dados importados com sucesso', 'success')
@@ -98,6 +127,8 @@ export default function ConfiguracoesPage() {
     { label: 'Itens', value: items.length },
     { label: 'Categorias', value: categories.length },
     { label: 'Histórico', value: history.length },
+    { label: 'Lojas', value: stores.length },
+    { label: 'Preços', value: productPrices.length },
   ]
 
   return (

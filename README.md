@@ -5,7 +5,8 @@ Gerenciador de listas de compras para uso pessoal. Roda 100% no navegador — se
 ## Funcionalidades
 
 - Criar e gerenciar listas de compras com orçamento
-- Adicionar e editar itens (quantidade, unidade, preço estimado, preço real, categoria, prioridade, notas)
+- Adicionar e editar itens (quantidade, unidade, preço estimado, preço real, categoria, loja, prioridade, notas)
+  - Validação inteligente que bloqueia a adição de itens duplicados (mesmo nome) na mesma lista
 - Marcar itens como comprados
 - Filtrar por categoria, status e buscar por nome
 - Ordenação por prioridade, nome, categoria ou manual (drag & drop)
@@ -17,7 +18,12 @@ Gerenciador de listas de compras para uso pessoal. Roda 100% no navegador — se
 - Estatísticas com filtro de período: gastos por categoria, gráfico mensal, sugestões inteligentes
 - Compartilhar lista como texto (Web Share API ou cópia para clipboard)
 - Exportar e importar dados como JSON (backup entre dispositivos)
-- Categorias padrão + personalizadas
+- Notificações de feedback (Toasts) e diálogos de confirmação para ações importantes
+- Categorias e Lojas (padrão + personalizadas)
+- Comparador Global de Preços (base de dados de preços desacoplada, alertas inteligentes de economia e histórico)
+- Visão Centralizada de Preços: tela dedicada para visualizar, editar e gerenciar todos os preços registrados
+- Sugestões Inteligentes: preenchimento de preço e loja em 1 clique ao adicionar itens
+- Telas de carregamento suaves (Skeleton Loaders) e alta performance sem re-renders desnecessários
 - Dark mode
 - Layout responsivo (sidebar + hamburger mobile)
 - PWA instalável

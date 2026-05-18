@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { Plus, Trash2, Tag } from 'lucide-react'
+import { Plus, Trash2, Building2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,104 +19,84 @@ import { toast } from '@/hooks/use-toast'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 const EMOJI_SUGGESTIONS = [
-  '🛒',
-  '🍞',
-  '🥩',
-  '🧹',
-  '🧴',
-  '🥤',
-  '🧀',
-  '🥦',
-  '💻',
-  '📦',
-  '🎮',
-  '👕',
-  '🏠',
-  '💊',
-  '🐾',
+  '🏪', '🏬', '🛒', '🛍️', '🏢', '🏦', '🚗', '🌐', '📦',
+  '🍊', '🟡', '🔵', '🟢', '🔴', '⭐',
 ]
 
-export function CategoriesClient() {
+export function StoresClient() {
   const mounted = useMounted()
-  const categories = useAppStore((s) => s.categories)
+  const stores = useAppStore((s) => s.stores)
   const items = useAppStore((s) => s.items)
-  const addCategory = useAppStore((s) => s.addCategory)
-  const deleteCategory = useAppStore((s) => s.deleteCategory)
+  const addStore = useAppStore((s) => s.addStore)
+  const deleteStore = useAppStore((s) => s.deleteStore)
 
   const [open, setOpen] = useState(false)
-  const [confirmDeleteCategoryId, setConfirmDeleteCategoryId] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [name, setName] = useState('')
-  const [icon, setIcon] = useState('📦')
+  const [icon, setIcon] = useState('🏪')
   const [color, setColor] = useState('#6366f1')
 
-  if (!mounted) return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <Skeleton className="h-8 w-28" />
-        <Skeleton className="h-9 w-36 rounded-md" />
+  if (!mounted) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-8 w-24" />
+          <Skeleton className="h-9 w-36 rounded-md" />
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-20 rounded-lg" />
+          ))}
+        </div>
       </div>
-      <Card>
-        <CardContent className="p-4 space-y-3">
-          <Skeleton className="h-4 w-32" />
-          <div className="flex flex-wrap gap-2">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <Skeleton key={i} className="h-8 w-28 rounded-full" />
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  )
+    )
+  }
 
-  function createCategory() {
+  function createStore() {
     if (!name.trim()) return
-    addCategory({ name: name.trim(), icon, color })
+    addStore({ name: name.trim(), icon, color })
     setName('')
-    setIcon('📦')
+    setIcon('🏪')
     setColor('#6366f1')
     setOpen(false)
-    toast('Categoria criada', 'success')
+    toast('Loja criada', 'success')
   }
 
-  function handleDeleteCategory(id: string) {
-    setConfirmDeleteCategoryId(id)
+  function confirmDelete() {
+    if (!confirmDeleteId) return
+    deleteStore(confirmDeleteId)
+    toast('Loja excluída', 'destructive')
+    setConfirmDeleteId(null)
   }
 
-  function confirmDeleteCategory() {
-    if (!confirmDeleteCategoryId) return
-    deleteCategory(confirmDeleteCategoryId)
-    toast('Categoria excluída', 'destructive')
-    setConfirmDeleteCategoryId(null)
-  }
+  const itemCount = (storeId: string) => items.filter((i) => i.storeId === storeId).length
 
-  const itemCountForCategory = (catId: string) => items.filter((i) => i.categoryId === catId).length
-
-  const defaults = categories.filter((c) => c.isDefault)
-  const custom = categories.filter((c) => !c.isDefault)
+  const defaults = stores.filter((s) => s.isDefault)
+  const custom = stores.filter((s) => !s.isDefault)
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Categorias</h1>
+        <h1 className="text-2xl font-bold">Lojas</h1>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="h-4 w-4" />
-              Nova categoria
+              Nova loja
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Nova categoria</DialogTitle>
+              <DialogTitle>Nova loja</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 mt-2">
               <div className="space-y-2">
                 <Label>Nome *</Label>
                 <Input
-                  placeholder="Ex: Farmácia"
+                  placeholder="Ex: Supermercado X"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && createCategory()}
+                  onKeyDown={(e) => e.key === 'Enter' && createStore()}
                 />
               </div>
               <div className="space-y-2">
@@ -147,38 +127,35 @@ export function CategoriesClient() {
                   <span className="text-sm text-[var(--muted-foreground)]">{color}</span>
                 </div>
               </div>
-
               <div className="flex items-center gap-3 p-3 rounded-lg bg-[var(--secondary)]">
                 <span className="text-2xl">{icon}</span>
                 <span className="font-medium">{name || 'Prévia'}</span>
                 <div className="h-3 w-3 rounded-full ml-auto" style={{ backgroundColor: color }} />
               </div>
-
-              <Button className="w-full" onClick={createCategory} disabled={!name.trim()}>
-                Criar categoria
+              <Button className="w-full" onClick={createStore} disabled={!name.trim()}>
+                Criar loja
               </Button>
             </div>
           </DialogContent>
         </Dialog>
       </div>
 
-      {/* Default categories */}
       <div>
         <h2 className="text-sm font-semibold text-[var(--muted-foreground)] mb-3">PADRÃO</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-          {defaults.map((cat) => (
-            <Card key={cat.id}>
+          {defaults.map((store) => (
+            <Card key={store.id}>
               <CardContent className="p-3 flex items-center gap-2">
-                <span className="text-xl">{cat.icon}</span>
+                <span className="text-xl">{store.icon ?? '🏪'}</span>
                 <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{cat.name}</p>
+                  <p className="text-sm font-medium truncate">{store.name}</p>
                   <p className="text-xs text-[var(--muted-foreground)]">
-                    {itemCountForCategory(cat.id)} itens
+                    {itemCount(store.id)} ite{itemCount(store.id) === 1 ? 'm' : 'ns'}
                   </p>
                 </div>
                 <div
                   className="h-2 w-2 rounded-full ml-auto shrink-0"
-                  style={{ backgroundColor: cat.color }}
+                  style={{ backgroundColor: store.color ?? '#94a3b8' }}
                 />
               </CardContent>
             </Card>
@@ -186,7 +163,6 @@ export function CategoriesClient() {
         </div>
       </div>
 
-      {/* Custom categories */}
       <div>
         <h2 className="text-sm font-semibold text-[var(--muted-foreground)] mb-3">
           PERSONALIZADAS
@@ -194,27 +170,27 @@ export function CategoriesClient() {
         {custom.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-10 text-center">
-              <Tag className="h-8 w-8 text-[var(--muted-foreground)] mb-3" />
+              <Building2 className="h-8 w-8 text-[var(--muted-foreground)] mb-3" />
               <p className="text-sm text-[var(--muted-foreground)]">
-                Nenhuma categoria personalizada
+                Nenhuma loja personalizada
               </p>
             </CardContent>
           </Card>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-            {custom.map((cat) => (
-              <Card key={cat.id} className="group">
+            {custom.map((store) => (
+              <Card key={store.id} className="group">
                 <CardContent className="p-3 flex items-center gap-2">
-                  <span className="text-xl">{cat.icon}</span>
+                  <span className="text-xl">{store.icon ?? '🏪'}</span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium truncate">{cat.name}</p>
+                    <p className="text-sm font-medium truncate">{store.name}</p>
                     <p className="text-xs text-[var(--muted-foreground)]">
-                      {itemCountForCategory(cat.id)} itens
+                      {itemCount(store.id)} ite{itemCount(store.id) === 1 ? 'm' : 'ns'}
                     </p>
                   </div>
                   <button
-                    onClick={() => handleDeleteCategory(cat.id)}
-                    aria-label="Excluir categoria"
+                    onClick={() => setConfirmDeleteId(store.id)}
+                    aria-label="Excluir loja"
                     className="flex items-center justify-center h-10 w-10 md:h-auto md:w-auto md:p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 rounded hover:bg-red-100 dark:hover:bg-red-950 text-red-400 hover:text-red-600 transition-all shrink-0 cursor-pointer"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -225,13 +201,14 @@ export function CategoriesClient() {
           </div>
         )}
       </div>
+
       <ConfirmDialog
-        open={!!confirmDeleteCategoryId}
-        onOpenChange={(open) => !open && setConfirmDeleteCategoryId(null)}
-        title="Excluir categoria"
-        description="Os itens que usam esta categoria ficarão sem categorização. Esta ação não pode ser desfeita."
+        open={!!confirmDeleteId}
+        onOpenChange={(open) => !open && setConfirmDeleteId(null)}
+        title="Excluir loja"
+        description="Os itens que usam esta loja ficarão sem loja associada. Esta ação não pode ser desfeita."
         confirmLabel="Excluir"
-        onConfirm={confirmDeleteCategory}
+        onConfirm={confirmDelete}
       />
     </div>
   )

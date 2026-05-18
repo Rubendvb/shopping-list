@@ -1,12 +1,13 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BarChart3, ListChecks, ShoppingCart, Tag, History, Settings, Menu, X } from 'lucide-react'
+import { BarChart3, ListChecks, ShoppingCart, Tag, History, Settings, Menu, X, Building2, TrendingDown, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Badge } from '@/components/ui/badge'
 import { useAppStore } from '@/store/use-app-store'
 import { useMounted } from '@/hooks/use-mounted'
+import { useGlobalSearch } from '@/hooks/use-global-search'
 import { useState } from 'react'
 
 const navItems = [
@@ -15,6 +16,8 @@ const navItems = [
   { href: '/dashboard/estatisticas', label: 'Estatísticas', icon: BarChart3 },
   { href: '/dashboard/historico', label: 'Histórico', icon: History },
   { href: '/dashboard/categorias', label: 'Categorias', icon: Tag },
+  { href: '/dashboard/lojas', label: 'Lojas', icon: Building2 },
+  { href: '/dashboard/precos', label: 'Comparador', icon: TrendingDown },
   { href: '/dashboard/configuracoes', label: 'Configurações', icon: Settings },
 ]
 
@@ -22,13 +25,14 @@ export function Sidebar() {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const mounted = useMounted()
-  const lists = useAppStore((s) => s.lists)
-  const activeCount = mounted ? lists.filter((l) => !l.isCompleted).length : 0
+  const rawActiveCount = useAppStore((s) => s.lists.filter((l) => !l.isCompleted).length)
+  const activeCount = mounted ? rawActiveCount : 0
+  const openSearch = useGlobalSearch((s) => s.open)
 
   return (
     <>
       <button
-        className="fixed top-4 left-4 z-50 md:hidden p-2 rounded-md bg-[var(--card)] border border-[var(--border)] shadow"
+        className="fixed top-4 left-4 z-50 md:hidden p-2 rounded-md bg-[var(--card)] border border-[var(--border)] shadow cursor-pointer"
         onClick={() => setOpen(!open)}
       >
         {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -51,6 +55,16 @@ export function Sidebar() {
         </div>
 
         <nav className="flex-1 p-4 space-y-1">
+          <button
+            onClick={() => { openSearch(); setOpen(false) }}
+            className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors text-[var(--sidebar-foreground)] hover:bg-[var(--accent)] w-full cursor-pointer mb-1"
+          >
+            <Search className="h-4 w-4 shrink-0" />
+            <span className="flex-1 text-left">Buscar</span>
+            <kbd className="hidden md:inline-flex items-center text-xs text-[var(--muted-foreground)] bg-[var(--secondary)] px-1.5 py-0.5 rounded font-mono">
+              ⌘K
+            </kbd>
+          </button>
           {navItems.map(({ href, label, icon: Icon }) => {
             const isActive = href === '/dashboard' ? pathname === href : pathname.startsWith(href)
             const showBadge = href === '/dashboard/listas' && activeCount > 0

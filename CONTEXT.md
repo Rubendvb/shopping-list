@@ -7,7 +7,11 @@ Aplicativo web de gerenciamento de listas de compras. Single-user, sem autentica
 **Funcionalidades implementadas:**
 
 - CRUD de listas de compras com orçamento
-- CRUD de itens por lista (nome, quantidade, unidade, preço estimado, preço real, categoria, prioridade, notas)
+- CRUD de itens por lista (nome, quantidade, unidade, preço estimado, preço real, categoria, loja, prioridade, notas)
+  - **Bloqueio de duplicados**: Não permite itens com o mesmo nome na mesma lista
+  - **Comparador Global de Preços**: Base de dados de preços desacoplada. Exibe alertas de onde o produto é mais barato ou se o atual é o "Melhor preço" (suportando empates)
+  - **Visão Centralizada de Preços (`/dashboard/precos`)**: Agrupa e lista todos os produtos registrados, permitindo editar preços, adicionar novas lojas ou remover registros
+  - **Sugestão Inteligente**: Ao adicionar itens, oferece preço mínimo e médio com preenchimento em 1 clique
 - Edição de itens via dialog com todos os campos (incluindo preço real e notas)
 - Marcar itens como comprados
 - Filtro por categoria, status (comprado/pendente) e busca por nome
@@ -16,6 +20,8 @@ Aplicativo web de gerenciamento de listas de compras. Single-user, sem autentica
 - Concluir lista → salva snapshot no histórico (com validação para listas sem itens comprados)
 - Histórico de compras com cards expansíveis e detalhamento completo
 - Estatísticas: gastos por categoria, gráfico mensal, itens mais comprados, sugestões inteligentes com ação de adicionar
+- Gerenciamento de Lojas: cadastro de lojas padrão e personalizadas
+- Comparador de Preços: histórico de preços registrados por produto e loja
 - 12 categorias padrão baseadas em seções de supermercado + categorias personalizadas
 - Dark mode (next-themes)
 - Layout responsivo com sidebar (mobile: hamburger menu)
@@ -25,6 +31,7 @@ Aplicativo web de gerenciamento de listas de compras. Single-user, sem autentica
 - Templates de lista pré-configurados (Mercado, Churrasco, Faxina, Festa)
 - Compartilhar lista como texto (Web Share API + fallback clipboard)
 - Exportar/importar dados como JSON (backup)
+- Notificações de feedback (Toasts) e diálogos de confirmação
 - PWA: app instalável (`manifest.webmanifest`, ícones, `apple-touch-icon`)
 - Filtro de período nas estatísticas (último mês, 3 meses, 6 meses, ano, tudo)
 
@@ -67,7 +74,15 @@ shopping-list/
     │       │   ├── lists-client.tsx        # CRUD de listas + templates
     │       │   └── [id]/
     │       │       ├── page.tsx    # Wrapper → <ListDetailClient listId={id}>
-    │       │       └── list-detail-client.tsx  # Detalhe da lista, itens, drag & drop
+    │       │       ├── list-detail-client.tsx  # Detalhe da lista, header, drag & drop wrapper
+    │       │       └── components/ # Componentes interativos modulares
+    │       │           ├── add-item-form.tsx
+    │       │           ├── budget-card.tsx
+    │       │           ├── edit-item-dialog.tsx
+    │       │           └── item-card.tsx
+    │       ├── precos/
+    │       │   ├── page.tsx        # Wrapper → <PricesClient>
+    │       │   └── prices-client.tsx       # Visão centralizada de comparação de preços
     │       ├── estatisticas/
     │       │   └── page.tsx        # Estatísticas com filtro de período
     │       ├── historico/
@@ -75,6 +90,9 @@ shopping-list/
     │       ├── categorias/
     │       │   ├── page.tsx        # Wrapper → <CategoriesClient>
     │       │   └── categories-client.tsx
+    │       ├── lojas/
+    │       │   ├── page.tsx        # Wrapper → <StoresClient>
+    │       │   └── stores-client.tsx
     │       └── configuracoes/
     │           └── page.tsx        # Exportar/importar JSON
     ├── components/
@@ -93,6 +111,7 @@ shopping-list/
     │       ├── label.tsx
     │       ├── progress.tsx
     │       ├── select.tsx
+    │       ├── skeleton.tsx            # Skeleton loaders para o guard de hidratação
     │       ├── tabs.tsx
     │       ├── toast.tsx
     │       └── toaster.tsx             # Renderiza toasts ativos (montado em dashboard/layout.tsx)
@@ -100,6 +119,7 @@ shopping-list/
     │   └── use-app-store.ts        # Zustand store com persist → localStorage
     ├── hooks/
     │   ├── use-mounted.ts          # Retorna true só após mount no client
+    │   ├── use-statistics.ts       # Lógica e cálculos de estatísticas de compras
     │   └── use-toast.ts            # Mini-store de toasts; chamar toast(msg, variant) de qualquer lugar
     ├── types/
     │   └── index.ts                # Tipos compartilhados: List, Item, Category, PurchaseHistory
@@ -114,7 +134,7 @@ shopping-list/
 
 ## Store Zustand (`use-app-store.ts`)
 
-Chave localStorage: `"listafacil-storage"` · Versão atual: `2`
+Chave localStorage: `"listafacil-storage"` · Versão atual: `5`
 
 **Estado:**
 
@@ -123,6 +143,9 @@ lists: List[]
 items: Item[]
 categories: Category[]
 history: PurchaseHistory[]
+stores: Store[]
+priceHistory: PriceRecord[]
+productPrices: ProductPrice[]
 ```
 
 **Actions:**
@@ -134,18 +157,26 @@ history: PurchaseHistory[]
 | `deleteList(id)`                              | Remove lista + itens associados + histórico                       |
 | `completeList(id)`                            | Cria `PurchaseHistory` snapshot e marca `isCompleted: true`       |
 | `duplicateList(id)`                           | Copia lista + itens (`isPurchased: false`), retorna novo `id`     |
-| `addItem({ listId, name, ... })`              | Adiciona item; auto-atribui `order = max(existentes) + 1`         |
-| `updateItem(id, data)`                        | Atualiza item (inclui `isPurchased`, `actualPrice`)               |
+| `addItem({ listId, name, ... })`              | Adiciona item; retorna `false` se já existir item com o mesmo nome na lista |
+| `updateItem(id, data)`                        | Atualiza item; atualiza globalmente o nome no `priceHistory`; retorna `false` se duplicado |
 | `deleteItem(id)`                              | Remove item                                                       |
 | `reorderItems(listId, orderedIds)`            | Atualiza `order` de todos os itens conforme novo array de IDs     |
 | `addCategory({ name, icon?, color? })`        | Cria categoria personalizada                                      |
 | `deleteCategory(id)`                          | Remove categoria + limpa `categoryId` nos itens que a referenciavam |
-| `importData({ lists, items, categories, history })` | Substitui todo o estado (fluxo de restore)                  |
+| `addStore({ name, icon?, color? })`           | Cria loja personalizada                                           |
+| `deleteStore(id)`                             | Remove loja, limpa `storeId` nos itens e remove seus `productPrices` |
+| `updateProductPrice(key, storeId, price)`     | Faz upsert global de preço num produto sem alterar os itens         |
+| `addProductPrice(key, name, storeId, price)`  | Adiciona manualmente um novo par de loja e preço a um produto       |
+| `removeProductPrice(key, storeId)`            | Remove o registro de preço de uma loja para um produto              |
+| `importData({ ... })`                         | Substitui todo o estado (fluxo de restore)                  |
 
 **Migração:**
 
 - v0 → v1: renomeia "Mercado" → "Mercearia" (mantendo `cat-mercado`), insere `cat-congelados` e `cat-utilidades`
 - v1 → v2: atribui `order` sequencial a itens sem o campo (por lista, preservando posição no array)
+- v2 → v3: inicializa `stores` com lojas padrão e cria array vazio para `priceHistory`
+- v3 → v4: insere qualquer nova loja padrão que possa estar faltando no estado existente
+- v4 → v5: inicializa array vazio de `productPrices` para a base global do comparador
 
 Para mudanças futuras: incrementar `version` e adicionar bloco `fromVersion < N` em `migrate`.
 
@@ -175,6 +206,7 @@ interface Item {
   estimatedPrice?: number  // centavos
   actualPrice?: number     // centavos
   categoryId?: string
+  storeId?: string
   priority: Priority
   isPurchased: boolean
   order?: number        // posição na ordenação manual
@@ -190,7 +222,7 @@ interface PurchaseHistory {
   totalEstimated: number  // centavos
   totalActual: number     // centavos
   itemCount: number
-  itemsSummary: ItemSummary[]
+  itemsSummary: (ItemSummary & { storeId?: string })[]
   completedAt: string
 }
 ```
@@ -208,18 +240,39 @@ dashboard/listas/page.tsx          ← wrapper simples
 
 Páginas com rota dinâmica (`[id]`) recebem o ID via `useParams()` e passam para o client component.
 
+Componentes complexos (como o detalhe da lista) têm sua UI fragmentada em subcomponentes locais dentro de uma pasta `components/` específica da rota. Isso mantém o arquivo principal limpo e focado no fluxo geral de dados.
+
 ---
 
-## Guard de hidratação
+## Guard de hidratação e Loaders
 
-Todo componente que lê do store usa `useMounted()`:
+Todo componente que lê do store usa `useMounted()`. Para evitar telas em branco ou repulsa visual durante a hidratação (SSR vs Client mismatch), usamos uma estrutura de UI "fantasma" (`<Skeleton>`) no lugar de retornar `null`.
 
-```ts
+```tsx
 const mounted = useMounted()
-if (!mounted) return null
+
+if (!mounted) return (
+  <div className="space-y-6">
+    <Skeleton className="h-8 w-36" />
+    {/* ... layout que imita a UI final ... */}
+  </div>
+)
 ```
 
 Todos os hooks (`useState`, `useMemo`, `useSensors`, etc.) devem ser declarados **antes** de qualquer `return` condicional.
+
+---
+
+## Zustand Selectors e Performance
+
+Para evitar re-renders desnecessários quando componentes recuperam arrays ou objetos derivados do store (como um `.filter()` direto no seletor), o projeto adota o `useShallow` fornecido pelo Zustand:
+
+```tsx
+import { useShallow } from 'zustand/react/shallow'
+
+// Correto: O componente só re-renderiza se os itens filtrados de fato mudarem (shallow equal)
+const listItems = useAppStore(useShallow((s) => s.items.filter((i) => i.listId === listId)))
+```
 
 ---
 

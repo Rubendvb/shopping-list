@@ -1,5 +1,5 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { formatCurrency } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -20,7 +20,9 @@ import { BarChart3, Lightbulb, Plus, ShoppingCart, Calendar } from 'lucide-react
 import { useAppStore } from '@/store/use-app-store'
 import { useMounted } from '@/hooks/use-mounted'
 import { toast } from '@/hooks/use-toast'
-import type { ItemSummary } from '@/types'
+import { useStatistics, periodOptions } from '@/hooks/use-statistics'
+import { Skeleton } from '@/components/ui/skeleton'
+import type { Period, TopItem } from '@/hooks/use-statistics'
 
 const monthNames: Record<string, string> = {
   '01': 'Jan', '02': 'Fev', '03': 'Mar', '04': 'Abr',
@@ -28,105 +30,63 @@ const monthNames: Record<string, string> = {
   '09': 'Set', '10': 'Out', '11': 'Nov', '12': 'Dez',
 }
 
-const periodOptions = [
-  { value: 'last-month', label: 'Último mês' },
-  { value: 'last-3-months', label: 'Últimos 3 meses' },
-  { value: 'last-6-months', label: 'Últimos 6 meses' },
-  { value: 'this-year', label: 'Este ano' },
-  { value: 'all', label: 'Tudo' },
-] as const
-
-type Period = (typeof periodOptions)[number]['value']
-
-interface Suggestion {
-  name: string
-  count: number
-  category?: string
-}
-
 export default function EstatisticasPage() {
   const mounted = useMounted()
-  const history = useAppStore((s) => s.history)
-  const lists = useAppStore((s) => s.lists)
   const categories = useAppStore((s) => s.categories)
+  const lists = useAppStore((s) => s.lists)
   const addItem = useAppStore((s) => s.addItem)
 
   const [period, setPeriod] = useState<Period>('all')
-  const [dialogItem, setDialogItem] = useState<Suggestion | null>(null)
+  const [dialogItem, setDialogItem] = useState<TopItem | null>(null)
   const [selectedListId, setSelectedListId] = useState('')
 
-  // ── filtered history ────────────────────────────────────────────────────────
+  const {
+    hasData,
+    filteredHistory,
+    totalSpent,
+    avgPerList,
+    listsCompleted,
+    categoryStats,
+    maxCategory,
+    topItems,
+    suggestions,
+    monthlyData,
+    maxMonthly,
+    activeLists,
+  } = useStatistics(period)
 
-  const filteredHistory = useMemo(() => {
-    if (period === 'all') return history
-    const now = new Date()
-    let cutoff: Date
-    if (period === 'last-month') cutoff = new Date(now.getTime() - 30 * 86_400_000)
-    else if (period === 'last-3-months') cutoff = new Date(now.getTime() - 90 * 86_400_000)
-    else if (period === 'last-6-months') cutoff = new Date(now.getTime() - 180 * 86_400_000)
-    else cutoff = new Date(now.getFullYear(), 0, 1) // this-year
-    return history.filter((h) => {
-      try {
-        return new Date(h.completedAt) >= cutoff
-      } catch {
-        return false
-      }
-    })
-  }, [history, period])
+  if (!mounted) return (
+    <div className="space-y-8">
+      <div className="flex items-center justify-between gap-4">
+        <Skeleton className="h-8 w-32" />
+        <Skeleton className="h-9 w-44 rounded-md" />
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Card key={i}>
+            <CardContent className="p-4 space-y-2">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-7 w-20" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      <div className="grid gap-6 lg:grid-cols-2">
+        {Array.from({ length: 2 }).map((_, i) => (
+          <Card key={i}>
+            <CardContent className="p-4 space-y-3 pt-6">
+              <Skeleton className="h-4 w-36 mb-2" />
+              {Array.from({ length: 4 }).map((_, j) => (
+                <Skeleton key={j} className="h-4 w-full" />
+              ))}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  )
 
-  // ── computed stats ──────────────────────────────────────────────────────────
-
-  const stats = useMemo(() => {
-    const totalSpent = filteredHistory.reduce((s, h) => s + h.totalActual, 0)
-    const avgPerList = filteredHistory.length > 0 ? Math.round(totalSpent / filteredHistory.length) : 0
-
-    const categoryMap: Record<string, { name: string; total: number }> = {}
-    const itemFrequency: Record<string, Suggestion> = {}
-
-    for (const h of filteredHistory) {
-      for (const item of h.itemsSummary as ItemSummary[]) {
-        if (!item.isPurchased) continue
-        const price = (item.actualPrice ?? item.estimatedPrice ?? 0) * item.quantity
-        const cat = item.category ?? 'Outros'
-        if (!categoryMap[cat]) categoryMap[cat] = { name: cat, total: 0 }
-        categoryMap[cat].total += price
-
-        const key = item.name.toLowerCase()
-        if (!itemFrequency[key]) itemFrequency[key] = { name: item.name, count: 0 }
-        itemFrequency[key].count += item.quantity
-        if (item.category && !itemFrequency[key].category) {
-          itemFrequency[key].category = item.category
-        }
-      }
-    }
-
-    const categoryStats = Object.values(categoryMap).sort((a, b) => b.total - a.total).slice(0, 8)
-    const topItems = Object.values(itemFrequency).sort((a, b) => b.count - a.count).slice(0, 10)
-    const suggestions = topItems.slice(0, 5)
-    const maxCategory = categoryStats[0]?.total ?? 1
-
-    const monthlyMap: Record<string, number> = {}
-    for (const h of filteredHistory) {
-      const key = h.completedAt.slice(0, 7)
-      if (!monthlyMap[key]) monthlyMap[key] = 0
-      monthlyMap[key] += h.totalActual
-    }
-    const monthly = Object.entries(monthlyMap)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .slice(-6)
-      .map(([month, total]) => ({ month, total }))
-    const maxMonthly = Math.max(...monthly.map((m) => m.total), 1)
-
-    return { totalSpent, avgPerList, categoryStats, topItems, suggestions, maxCategory, monthly, maxMonthly }
-  }, [filteredHistory])
-
-  const activeLists = useMemo(() => lists.filter((l) => !l.isCompleted), [lists])
-
-  // ── early returns (after all hooks) ────────────────────────────────────────
-
-  if (!mounted) return null
-
-  if (history.length === 0) {
+  if (!hasData) {
     return (
       <div className="space-y-6">
         <h1 className="text-2xl font-bold">Estatísticas</h1>
@@ -143,9 +103,7 @@ export default function EstatisticasPage() {
     )
   }
 
-  // ── suggestion dialog handlers ──────────────────────────────────────────────
-
-  function openSuggestionDialog(suggestion: Suggestion) {
+  function openSuggestionDialog(suggestion: TopItem) {
     setSelectedListId(activeLists[0]?.id ?? '')
     setDialogItem(suggestion)
   }
@@ -161,10 +119,6 @@ export default function EstatisticasPage() {
     setDialogItem(null)
     setSelectedListId('')
   }
-
-  const { totalSpent, avgPerList, categoryStats, topItems, suggestions, maxCategory, monthly, maxMonthly } = stats
-
-  // ── render ──────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-8">
@@ -212,7 +166,7 @@ export default function EstatisticasPage() {
             <Card>
               <CardContent className="p-4">
                 <p className="text-xs text-[var(--muted-foreground)]">Listas concluídas</p>
-                <p className="text-xl font-bold mt-1">{filteredHistory.length}</p>
+                <p className="text-xl font-bold mt-1">{listsCompleted}</p>
               </CardContent>
             </Card>
             <Card>
@@ -258,7 +212,7 @@ export default function EstatisticasPage() {
               </CardHeader>
               <CardContent>
                 <div className="flex items-end gap-2 h-40">
-                  {monthly.map(({ month, total }) => {
+                  {monthlyData.map(({ month, total }) => {
                     const [, m] = month.split('-')
                     return (
                       <div key={month} className="flex-1 flex flex-col items-center gap-1">
@@ -316,7 +270,7 @@ export default function EstatisticasPage() {
                     <button
                       key={item.name}
                       onClick={() => openSuggestionDialog(item)}
-                      className="px-3 py-1.5 bg-[var(--secondary)] rounded-full text-sm flex items-center gap-1.5 hover:bg-[var(--accent)] transition-colors group"
+                      className="px-3 py-1.5 bg-[var(--secondary)] rounded-full text-sm flex items-center gap-1.5 hover:bg-[var(--accent)] transition-colors cursor-pointer group"
                       aria-label={`Adicionar ${item.name} a uma lista`}
                     >
                       🛒 {item.name}
