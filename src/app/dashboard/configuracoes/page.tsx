@@ -16,6 +16,7 @@ interface BackupFile {
   history: unknown[]
   stores?: unknown[]
   priceHistory?: unknown[]
+  productPrices?: unknown[]
 }
 
 function isValidBackup(data: unknown): data is BackupFile {
@@ -37,6 +38,7 @@ export default function ConfiguracoesPage() {
   const history = useAppStore((s) => s.history)
   const stores = useAppStore((s) => s.stores)
   const priceHistory = useAppStore((s) => s.priceHistory)
+  const productPrices = useAppStore((s) => s.productPrices)
   const importData = useAppStore((s) => s.importData)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -71,6 +73,7 @@ export default function ConfiguracoesPage() {
       history,
       stores,
       priceHistory,
+      productPrices,
     }
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
@@ -113,6 +116,7 @@ export default function ConfiguracoesPage() {
       history: pendingImport.history as never,
       stores: pendingImport.stores as never,
       priceHistory: pendingImport.priceHistory as never,
+      productPrices: pendingImport.productPrices as never,
     })
     setPendingImport(null)
     toast('Dados importados com sucesso', 'success')
@@ -124,7 +128,7 @@ export default function ConfiguracoesPage() {
     { label: 'Categorias', value: categories.length },
     { label: 'Histórico', value: history.length },
     { label: 'Lojas', value: stores.length },
-    { label: 'Preços', value: priceHistory.length },
+    { label: 'Preços', value: productPrices.length },
   ]
 
   return (

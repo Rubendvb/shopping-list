@@ -177,7 +177,7 @@ export const SortableItemCard = React.memo(function SortableItemCard({
               )}
               {item.estimatedPrice && (
                 <p className="text-xs text-[var(--muted-foreground)]">
-                  {formatCurrency(item.estimatedPrice)}/un
+                  {formatCurrency(item.estimatedPrice)}/{normalizeUnit(item.unit) ? unitAbbr(normalizeUnit(item.unit)!) : 'un'}
                 </p>
               )}
             </div>

@@ -67,6 +67,11 @@ export function PricesClient() {
     storeId: string
   } | null>(null)
 
+  const [newProductOpen, setNewProductOpen] = useState(false)
+  const [newProductName, setNewProductName] = useState('')
+  const [newProductStoreId, setNewProductStoreId] = useState('')
+  const [newProductPrice, setNewProductPrice] = useState<number | undefined>(undefined)
+
   const groups = useMemo((): PriceGroup[] => {
     const map = new Map<
       string,
@@ -144,6 +149,25 @@ export function PricesClient() {
     setRemoveTarget(null)
   }
 
+  function openNewProduct() {
+    setNewProductName('')
+    setNewProductStoreId('')
+    setNewProductPrice(undefined)
+    setNewProductOpen(true)
+  }
+
+  function saveNewProduct() {
+    const name = newProductName.trim()
+    if (!name || !newProductStoreId || !newProductPrice || newProductPrice <= 0) return
+    const ok = addProductPrice(name, newProductStoreId, newProductPrice)
+    if (!ok) {
+      toast('Já existe um preço para esse produto nessa loja', 'destructive')
+      return
+    }
+    toast('Produto cadastrado', 'success')
+    setNewProductOpen(false)
+  }
+
   if (!mounted) {
     return (
       <div className="space-y-6">
@@ -167,11 +191,18 @@ export function PricesClient() {
 
   return (
     <div className="space-y-6 pb-6">
-      <div>
-        <h1 className="text-2xl font-bold">Comparador de Preços</h1>
-        <p className="text-sm text-[var(--muted-foreground)] mt-1">
-          {groups.length} produto{groups.length !== 1 ? 's' : ''} com preço registrado
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Comparador de Preços</h1>
+          <p className="text-sm text-[var(--muted-foreground)] mt-1">
+            {groups.length} produto{groups.length !== 1 ? 's' : ''} com preço registrado
+          </p>
+        </div>
+        <Button onClick={openNewProduct} className="shrink-0">
+          <Plus className="h-4 w-4 mr-1.5" />
+          <span className="hidden sm:inline">Novo produto</span>
+          <span className="sm:hidden">Novo</span>
+        </Button>
       </div>
 
       {groups.length === 0 ? (
@@ -180,14 +211,14 @@ export function PricesClient() {
             <TrendingDown className="h-10 w-10 text-[var(--muted-foreground)] mb-4" />
             <p className="font-medium mb-1">Nenhum preço registrado</p>
             <p className="text-sm text-[var(--muted-foreground)] max-w-xs">
-              Adicione itens com loja e preço em qualquer lista e os dados aparecerão aqui para
-              comparação.
+              Adicione itens com loja e preço em qualquer lista, ou clique em{' '}
+              <strong>Novo produto</strong> para cadastrar direto aqui.
             </p>
           </CardContent>
         </Card>
       ) : (
         <>
-          <div className="relative max-w-xs">
+          <div className="relative w-full sm:max-w-xs">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--muted-foreground)] pointer-events-none" />
             <Input
               ref={searchRef}
@@ -215,7 +246,7 @@ export function PricesClient() {
               Nenhum produto encontrado
             </p>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               {filtered.map((group) => {
                 const { productKey, productName, entries, bestPrice, tieCount } = group
                 const missingStores = stores.filter(
@@ -224,14 +255,14 @@ export function PricesClient() {
                 return (
                   <Card key={productKey}>
                     <CardContent className="p-3 space-y-2.5">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="font-semibold text-sm leading-tight">{productName}</p>
+                      <div className="flex items-start justify-between gap-2 min-w-0">
+                        <p className="font-semibold text-sm leading-tight truncate min-w-0">{productName}</p>
                         {missingStores.length > 0 && (
                           <button
                             onClick={() => openAdd(group)}
                             aria-label="Adicionar loja ao produto"
                             title="Adicionar loja"
-                            className="shrink-0 text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors cursor-pointer p-0.5"
+                            className="shrink-0 flex items-center justify-center h-8 w-8 rounded text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--secondary)] transition-colors cursor-pointer"
                           >
                             <Plus className="h-4 w-4" />
                           </button>
@@ -281,25 +312,25 @@ export function PricesClient() {
                               ) : (
                                 <span className="w-5 shrink-0" aria-hidden />
                               )}
-                              <span className="text-xs text-[var(--muted-foreground)] shrink-0 tabular-nums">
+                              <span className="hidden lg:inline text-xs text-[var(--muted-foreground)] shrink-0 tabular-nums">
                                 {fmtDate(entry.updatedAt)}
                               </span>
                               <div className="flex items-center opacity-100 md:opacity-0 md:group-hover/row:opacity-100 transition-opacity shrink-0 gap-0">
                                 <button
                                   onClick={() => openEdit(entry, productName)}
                                   aria-label="Editar preço"
-                                  className="flex items-center justify-center h-7 w-7 rounded hover:bg-[var(--secondary)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors cursor-pointer"
+                                  className="flex items-center justify-center h-10 w-10 md:h-7 md:w-7 rounded hover:bg-[var(--secondary)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors cursor-pointer"
                                 >
-                                  <Pencil className="h-3 w-3" />
+                                  <Pencil className="h-3.5 w-3.5 md:h-3 md:w-3" />
                                 </button>
                                 <button
                                   onClick={() =>
                                     setRemoveTarget({ productKey, storeId: entry.storeId })
                                   }
                                   aria-label="Remover preço"
-                                  className="flex items-center justify-center h-7 w-7 rounded hover:bg-red-100 dark:hover:bg-red-950 text-red-400 hover:text-red-600 transition-colors cursor-pointer"
+                                  className="flex items-center justify-center h-10 w-10 md:h-7 md:w-7 rounded hover:bg-red-100 dark:hover:bg-red-950 text-red-400 hover:text-red-600 transition-colors cursor-pointer"
                                 >
-                                  <Trash2 className="h-3 w-3" />
+                                  <Trash2 className="h-3.5 w-3.5 md:h-3 md:w-3" />
                                 </button>
                               </div>
                             </div>
@@ -421,6 +452,67 @@ export function PricesClient() {
         variant="destructive"
         onConfirm={confirmRemove}
       />
+
+      {/* New product dialog */}
+      <Dialog open={newProductOpen} onOpenChange={(o) => !o && setNewProductOpen(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Novo produto</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div className="space-y-1">
+              <Label htmlFor="new-product-name">Nome do produto</Label>
+              <Input
+                id="new-product-name"
+                placeholder="Ex: Arroz 5kg"
+                value={newProductName}
+                onChange={(e) => setNewProductName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && saveNewProduct()}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Loja</Label>
+              <Select value={newProductStoreId} onValueChange={setNewProductStoreId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar loja" />
+                </SelectTrigger>
+                <SelectContent>
+                  {stores.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.icon} {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Preço (R$)</Label>
+              <CurrencyInput value={newProductPrice} onChange={setNewProductPrice} />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setNewProductOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={saveNewProduct}
+                disabled={
+                  !newProductName.trim() ||
+                  !newProductStoreId ||
+                  !newProductPrice ||
+                  newProductPrice <= 0
+                }
+              >
+                Cadastrar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
